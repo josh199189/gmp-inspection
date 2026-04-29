@@ -777,6 +777,69 @@ async function sheetsRefresh(){
     updateSyncStatus('🔄 시트 동기화: '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
   }catch(e){updateSyncStatus('⚠️ 동기화 실패: '+e.message);}
 }
+
+function updateProg(){
+  const db=gdb(),its=db.items[CF]||[],members=db.users||[],day=td();
+  const total=its.length*members.length;
+  let done=0;
+  its.forEach(item=>{done+=getChecks(item.id,day).length;});
+  const pct=total>0?Math.round(done/total*100):0;
+  const el=document.getElementById('prog-bar');
+  const tx=document.getElementById('prog-tx');
+  if(el)el.style.width=pct+'%';
+  if(tx)tx.textContent=pct+'%';
+}
+function goMap(itemId){
+  switchTab('map');
+  const db=gdb(),item=(db.items[CF]||[]).find(i=>i.id===itemId);
+  if(item&&item.x!=null&&item.y!=null){
+    setTimeout(()=>{
+      if(imgs[CF]&&canvas){
+        const cw=canvas.width,ch=canvas.height;
+        ox=cw/2-item.x*sc;oy=ch/2-item.y*sc;
+        render();
+      }
+    },300);
+  }
+}
+async function sheetsPost(params){
+  const url=getScriptUrl();if(!url)return null;
+  try{
+    await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify(params)});
+    return {ok:true};
+  }catch(e){
+    try{const p=new URLSearchParams({data:JSON.stringify(params)});await fetch(url+'?'+p,{mode:'no-cors'});return {ok:true};}
+    catch(e2){return {ok:false,error:e2.message};}
+  }
+}
+async function syncCheck(data){
+  const db2=gdb(),item2=(db2.items[data.floor]||[]).find(i=>i.id===data.itemId);
+  const payload={action:'check',floor:data.floor,floorName:data.floor===2?'2층 고형제':'3층 액상',categoryId:item2?.categoryId||'',categoryName:item2?.categoryName||'미분류',itemId:data.itemId,itemName:data.itemName,userId:data.userId,userName:data.userName,date:data.date,time:data.time,state:data.state||'ON'};
+  const result=await sheetsPost(payload);
+  if(result?.ok)updateSyncStatus('✅ 동기화: '+data.time);
+}
+async function syncUncheck(itemId,date){await sheetsPost({action:'uncheck',itemId,userId:CU.id,date});}
+async function syncUser(user){await sheetsPost({action:'register',name:user.name,password:user.pw});}
+function saveUrl(){
+  const url=document.getElementById('url-input').value.trim(),db=gdb();
+  db.scriptUrl=url;sdb(db);updateSyncBadge();
+  toast(url?'✅ 구글 시트 연동 저장됨':'연동 해제됨');
+  closeSettings();if(url)sheetsRefresh();
+}
+async function testConn(){
+  const url=document.getElementById('url-input').value.trim(),st=document.getElementById('sync-st');
+  if(!url){toast('⚠️ URL을 먼저 입력하세요');return;}
+  st.textContent='연결 테스트 중...';
+  try{
+    const params=new URLSearchParams({data:JSON.stringify({action:'login',name:'__test__',password:'__test__'})});
+    const r=await fetch(url+'?'+params,{method:'GET'});
+    const d=await r.json();
+    st.textContent=d.ok?'✅ 연결 성공':'⚠️ 연결 실패: '+(d.error||'');
+  }catch(e){st.textContent='❌ 연결 오류: '+e.message;}
+}
+function openSettings(){showScr('s-set');const db=gdb();document.getElementById('url-input').value=db.scriptUrl||'';}
+function closeSettings(){showScr('s-app');}
+
 window.addEventListener('resize',()=>{if(CU&&imgs[CF])resetView();});
 setInterval(()=>{if(CU){if(getScriptUrl())sheetsRefresh();else{render();renderList();updateProg();}}},60000);
 </script>
