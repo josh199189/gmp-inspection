@@ -445,7 +445,7 @@ function confirmMark(){
   cancelMark();render();renderList();updateProg();toast('✅ 추가됨: '+name);syncItem(item);
 }
 function cancelMark(){document.getElementById('mover').classList.remove('show');pending=null;}
-function doDelMark(idx){const db=gdb(),item=db.items[CF][idx];if(!item||!confirm('"'+item.name+'" 항목을 삭제하시겠습니까?'))return;db.items[CF].splice(idx,1);sdb(db);render();renderList();updateProg();toast('🗑 삭제됨: '+item.name);syncDelItem(item.id);}
+function doDelMark(idx){const db=gdb(),item=db.items[CF][idx];if(!item||!confirm('"'+item.name+'" 항목을 삭제하시겠습니까?'))return;db.items[CF].splice(idx,1);sdb(db);render();renderList();updateProg();toast('🗑 삭제됨: '+item.name);syncDelItem(item.id, CF);}
 function doDelById(id){const idx=(gdb().items[CF]||[]).findIndex(i=>i.id===id);if(idx>=0)doDelMark(idx);}
 function getChecks(itemId,date){const db=gdb(),key=date+'_'+itemId;return db.checks[key]||[];}
 function setChecks(itemId,date,arr){const db=gdb(),key=date+'_'+itemId;db.checks[key]=arr;sdb(db);}
@@ -527,8 +527,32 @@ async function sheetsPost(params){
   }
 }
 async function syncUser(user){await sheetsPost({action:'register',name:user.name,password:user.pw});}
-async function syncItem(item){await sheetsPost({action:'addItem',floor:item.floor,name:item.name,x:item.x,y:item.y,createdBy:item.createdBy});}
-async function syncDelItem(itemId){await sheetsPost({action:'deleteItem',itemId});}
+async async function syncItem(item){
+  const result=await sheetsPost({
+    action:'addItem',
+    floor:item.floor,
+    floorName:item.floor===2?'2층 고형제':'3층 액상',
+    itemId:item.id,
+    itemName:item.name,
+    categoryId:item.categoryId||'',
+    categoryName:item.categoryName||'미분류',
+    x:item.x, y:item.y,
+    createdBy:item.createdBy,
+    createdAt:item.createdAt
+  });
+  if(result?.ok)updateSyncStatus('✅ 항목 시트 반영: '+item.name);
+  // 전체 항목 목록도 동기화
+  await syncAllItems(item.floor);
+}
+async function syncDelItem(itemId, floor){
+  await sheetsPost({action:'deleteItem', itemId, floor: floor||CF});
+  await syncAllItems(floor||CF);
+}
+async function syncAllItems(floor){
+  const db=gdb(),items=(db.items[floor]||[]);
+  const cats=(db.categories?.[floor]||[]);
+  await sheetsPost({action:'syncItems', floor, items, categories:cats});
+}
 async function syncCheck(data){
   const db2=gdb(),item2=(db2.items[data.floor]||[]).find(i=>i.id===data.itemId);
   const payload={action:'check',floor:data.floor,floorName:data.floor===2?'2층 고형제':'3층 액상',categoryId:item2?.categoryId||'',categoryName:item2?.categoryName||'미분류',itemId:data.itemId,itemName:data.itemName,userId:data.userId,userName:data.userName,date:data.date,time:data.time,state:data.state||'ON'};
