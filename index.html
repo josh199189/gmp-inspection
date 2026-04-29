@@ -105,6 +105,22 @@ button,input{font-family:'Noto Sans KR',sans-serif;}
 .state-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:12px;font-size:10px;font-weight:700;}
 .state-chip.on{background:#06d6a022;color:#06d6a0;}
 .state-chip.off{background:#ef444422;color:#ef4444;}
+.item-edit-bar{display:flex;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--bd);}
+.btn-edit{flex:1;padding:8px;border-radius:8px;border:1px solid var(--bd);background:transparent;color:var(--tx2);font-size:11px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;justify-content:center;gap:4px;}
+.btn-edit.rename{border-color:#3b82f644;color:var(--ac);}
+.btn-edit.move{border-color:#f59e0b44;color:var(--warn);}
+.btn-edit.del{border-color:#ef444444;color:var(--err);}
+.btn-edit:active{opacity:.7;}
+.cat-edit-bar{display:flex;gap:6px;padding:2px 0;}
+.btn-cat-edit{padding:5px 10px;border-radius:7px;border:1px solid var(--bd);background:transparent;font-size:11px;font-weight:600;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+.btn-cat-edit.rename{color:var(--ac);border-color:#3b82f644;}
+.btn-cat-edit.del{color:var(--err);border-color:#ef444444;}
+/* 편집 모달 */
+.edit-modal{position:fixed;inset:0;background:#00000088;z-index:500;display:none;align-items:flex-end;justify-content:center;}
+.edit-modal.show{display:flex;}
+.edit-sheet{background:var(--sf);border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:20px 20px calc(20px + var(--sb));}
+.edit-sheet h3{font-size:15px;font-weight:700;margin-bottom:16px;}
+
 /* 카테고리 아코디언 */
 .cat-block{background:var(--sf);border:1px solid var(--bd);border-radius:14px;margin-bottom:10px;overflow:hidden;}
 .cat-block.has-done{border-color:#06d6a044;}
@@ -313,6 +329,16 @@ button,input{font-family:'Noto Sans KR',sans-serif;}
     <button class="mp-close" onclick="closeMarkerPopup()">닫기</button>
   </div>
 </div>
+
+<!-- 항목 편집 모달 -->
+<div id="edit-modal" class="edit-modal" onclick="if(event.target===this)closeEditModal()">
+  <div class="edit-sheet">
+    <div class="mhandle"></div>
+    <h3 id="edit-modal-title">✏️ 항목 편집</h3>
+    <div id="edit-modal-body"></div>
+  </div>
+</div>
+
 <div id="cat-modal" class="cat-modal" onclick="if(event.target===this)closeCatModal()">
   <div class="cat-sheet">
     <div class="mhandle"></div>
@@ -637,6 +663,15 @@ function toggleAdd(){if(CU?.role!=='superadmin')return;delMode=false;document.ge
   addMode=!addMode;document.getElementById('add-btn').classList.toggle('on',addMode);const p=document.getElementById('mpill');p.className='mpill'+(addMode?' show add':'');p.textContent=addMode?'📍 도면에서 위치 탭':'';if(addMode){switchTab('map');toast('도면을 탭하여 점검 항목을 추가하세요');}}
 function toggleDel(){if(CU?.role!=='superadmin')return;addMode=false;document.getElementById('add-btn').classList.remove('on');delMode=!delMode;document.getElementById('del-btn').classList.toggle('on',delMode);const p=document.getElementById('mpill');p.className='mpill'+(delMode?' show del':'');p.textContent=delMode?'🗑 삭제할 마커 탭':'';if(delMode){switchTab('map');toast('삭제할 마커를 탭하세요');}renderList();}
 function showMark(cx,cy){
+  // 위치 지정 모드 (기존 항목)
+  if(window._setPosModeItemId){
+    const db=gdb(),item=(db.items[CF]||[]).find(i=>i.id===window._setPosModeItemId);
+    if(item){item.x=cx;item.y=cy;sdb(db);render();renderList();toast('📍 위치 지정 완료: '+item.name);syncItem(item);}
+    window._setPosModeItemId=null;addMode=false;
+    document.getElementById('add-btn').classList.remove('on');
+    return;
+  }
+  // 새 항목 추가 모드
   pending={x:cx,y:cy};
   updateCatSelect(window._pendingCatId);
   document.getElementById('m-name').value='';
@@ -707,8 +742,13 @@ function renderList(){
     const myCk=cks.find(c=>c.userId===CU?.id);const myState=myCk?.state;
     const chkBtn=isAdmin?'<div class="onoff-row"><button class="onoff-btn nop" disabled>🔒 관리자 점검 불가</button></div>':`<div class="onoff-row"><button class="onoff-btn ${myState==='ON'?'on-active':'on-idle'}" onclick="setOnOff('${item.id}','ON')">🟢 ON${myState==='ON'?' ✓':''}</button><button class="onoff-btn ${myState==='OFF'?'off-active':'off-idle'}" onclick="setOnOff('${item.id}','OFF')">🔴 OFF${myState==='OFF'?' ✓':''}</button></div>`;
     const delBtnHtml=delMode&&isAdmin?`<button class="del-sm" onclick="event.stopPropagation();doDelById('${item.id}')">삭제</button>`:'';
-    const mapPos=item.x?`<button class="go-btn" onclick="goMap('${item.id}')">🗺 도면 위치</button>`:'<span style="font-size:11px;color:var(--tx3);">📍 위치 미설정</span>';
-    return `<div class="ci ${cls} ${delMode?'dm':''}"><div class="ci-hd"><div class="ci-nm">${item.name}</div><div class="ci-meta"><div class="cnt ${cntCls}" title="${onCount}ON ${offCount}OFF">${done}/${total||'?'}${done>0?` <small style='font-size:9px;opacity:.7'>${onCount>0?'🟢'+onCount:''}${offCount>0?'🔴'+offCount:''}</small>`:''}</div><div class="ci-num">#${i+1}</div>${delBtnHtml}</div></div><div class="ck-done">${checkedHtml}</div>${unchHtml}${chkBtn}${mapPos}</div>`;
+    const mapPos=item.x!=null?`<button class="go-btn" onclick="goMap('${item.id}')">🗺 도면 위치</button>`:`<button class="go-btn" onclick="setMapPos('${item.id}')">📍 도면에 위치 지정</button>`;
+    const editBar=isAdmin?`<div class="item-edit-bar">
+      <button class="btn-edit rename" onclick="renameItem('${item.id}','${item.name}')">✏️ 이름 변경</button>
+      <button class="btn-edit move" onclick="moveItem('${item.id}','${item.name}')">📂 카테고리 이동</button>
+      <button class="btn-edit del" onclick="deleteItem('${item.id}')">🗑 삭제</button>
+    </div>`:'';
+    return `<div class="ci ${cls}"><div class="ci-hd"><div class="ci-nm">${item.name}</div><div class="ci-meta"><div class="cnt ${cntCls}" title="${onCount}ON ${offCount}OFF">${done}/${total||'?'}${done>0?` <small style='font-size:9px;opacity:.7'>${onCount>0?'🟢'+onCount:''}${offCount>0?'🔴'+offCount:''}</small>`:''}</div></div></div><div class="ck-done">${checkedHtml}</div>${unchHtml}${chkBtn}${mapPos}${editBar}</div>`;
   };
 
   // 카테고리 아코디언 렌더
@@ -738,6 +778,7 @@ function renderList(){
         <div class="cat-hd-left"><span class="cat-ico">📂</span><span class="cat-hd-name">${cat.name}</span></div>
         <div class="cat-hd-right">
           <span class="cat-prog">${catItems.length}개 · ${pct}%</span>
+          ${isAdmin?`<span class="cat-edit-bar" onclick="event.stopPropagation()"><button class="btn-cat-edit rename" onclick="renameCat('${cat.id}','${cat.name}')">✏️</button><button class="btn-cat-edit del" onclick="delCat('${cat.id}')">🗑</button></span>`:''}
           <span class="cat-arrow ${isOpen?'open':''}">▼</span>
         </div>
       </div>
@@ -874,6 +915,111 @@ async function testConn(){
 }
 function openSettings(){showScr('s-set');const db=gdb();document.getElementById('url-input').value=db.scriptUrl||'';}
 function closeSettings(){showScr('s-app');}
+
+
+// ─── 항목/카테고리 편집 함수 ─────────────────────────
+function closeEditModal(){document.getElementById('edit-modal').classList.remove('show');}
+
+function renameItem(itemId, currentName){
+  const db=gdb(), item=(db.items[CF]||[]).find(i=>i.id===itemId);
+  if(!item)return;
+  const modal=document.getElementById('edit-modal');
+  document.getElementById('edit-modal-title').textContent='✏️ 항목 이름 변경';
+  document.getElementById('edit-modal-body').innerHTML=`
+    <label style="display:block;font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:8px;">항목 이름</label>
+    <input class="minput" id="edit-input" type="text" value="${currentName}" style="margin-bottom:14px;" onkeydown="if(event.key==='Enter')confirmRenameItem('${itemId}')"/>
+    <div class="mbt-row">
+      <button class="mbt ok" onclick="confirmRenameItem('${itemId}')">저장</button>
+      <button class="mbt no" onclick="closeEditModal()">취소</button>
+    </div>`;
+  modal.classList.add('show');
+  setTimeout(()=>{const inp=document.getElementById('edit-input');inp.focus();inp.select();},200);
+}
+function confirmRenameItem(itemId){
+  const newName=document.getElementById('edit-input').value.trim();
+  if(!newName)return;
+  const db=gdb(),items=db.items[CF]||[];
+  const item=items.find(i=>i.id===itemId);
+  if(!item)return;
+  item.name=newName;
+  sdb(db);closeEditModal();renderList();render();
+  toast('✅ 이름 변경: '+newName);
+  syncItem(item);
+}
+
+function moveItem(itemId, itemName){
+  const db=gdb(),cats=db.categories?.[CF]||[];
+  const item=(db.items[CF]||[]).find(i=>i.id===itemId);
+  if(!item)return;
+  const opts=`<option value="">미분류</option>`+cats.map(c=>`<option value="${c.id}" ${c.id===item.categoryId?'selected':''}>${c.name}</option>`).join('');
+  document.getElementById('edit-modal-title').textContent='📂 카테고리 이동';
+  document.getElementById('edit-modal-body').innerHTML=`
+    <label style="display:block;font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:8px;">항목: <strong>${itemName}</strong></label>
+    <label style="display:block;font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:8px;margin-top:12px;">이동할 카테고리</label>
+    <select id="edit-cat-select" style="width:100%;background:var(--sf2);border:1px solid var(--bd);border-radius:11px;padding:13px 14px;color:var(--tx);font-size:14px;outline:none;font-family:'Noto Sans KR',sans-serif;-webkit-appearance:none;margin-bottom:14px;">${opts}</select>
+    <div class="mbt-row">
+      <button class="mbt ok" onclick="confirmMoveItem('${itemId}')">이동</button>
+      <button class="mbt no" onclick="closeEditModal()">취소</button>
+    </div>`;
+  document.getElementById('edit-modal').classList.add('show');
+}
+function confirmMoveItem(itemId){
+  const catId=document.getElementById('edit-cat-select').value;
+  const db=gdb(),cats=db.categories?.[CF]||[];
+  const item=(db.items[CF]||[]).find(i=>i.id===itemId);
+  if(!item)return;
+  const cat=cats.find(c=>c.id===catId);
+  item.categoryId=catId;item.categoryName=cat?cat.name:'';
+  sdb(db);closeEditModal();renderList();
+  toast('✅ '+(cat?cat.name:'미분류')+'(으)로 이동됨');
+  syncItem(item);
+}
+
+function deleteItem(itemId){
+  const db=gdb(),items=db.items[CF]||[];
+  const item=items.find(i=>i.id===itemId);
+  if(!item||!confirm('"'+item.name+'" 항목을 삭제하시겠습니까?'))return;
+  db.items[CF]=items.filter(i=>i.id!==itemId);
+  sdb(db);renderList();render();updateProg();
+  toast('🗑 삭제됨: '+item.name);
+  syncDelItem(itemId,CF);
+}
+
+function renameCat(catId, currentName){
+  document.getElementById('edit-modal-title').textContent='✏️ 카테고리 이름 변경';
+  document.getElementById('edit-modal-body').innerHTML=`
+    <label style="display:block;font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:8px;">카테고리 이름</label>
+    <input class="minput" id="edit-input" type="text" value="${currentName}" style="margin-bottom:14px;" onkeydown="if(event.key==='Enter')confirmRenameCat('${catId}')"/>
+    <div class="mbt-row">
+      <button class="mbt ok" onclick="confirmRenameCat('${catId}')">저장</button>
+      <button class="mbt no" onclick="closeEditModal()">취소</button>
+    </div>`;
+  document.getElementById('edit-modal').classList.add('show');
+  setTimeout(()=>{const inp=document.getElementById('edit-input');inp.focus();inp.select();},200);
+}
+function confirmRenameCat(catId){
+  const newName=document.getElementById('edit-input').value.trim();
+  if(!newName)return;
+  const db=gdb(),cats=db.categories?.[CF]||[];
+  const cat=cats.find(c=>c.id===catId);
+  if(!cat)return;
+  const oldName=cat.name;
+  cat.name=newName;
+  // 항목들의 categoryName도 업데이트
+  (db.items[CF]||[]).forEach(it=>{if(it.categoryId===catId)it.categoryName=newName;});
+  sdb(db);closeEditModal();renderList();updateCatSelect();
+  toast('✅ 카테고리 이름 변경: '+newName);
+}
+
+function setMapPos(itemId){
+  // 도면에서 위치 지정 모드
+  window._pendingCatId=null;
+  window._setPosModeItemId=itemId;
+  addMode=true;
+  switchTab('map');
+  toast('📍 도면에서 위치를 탭하세요');
+}
+
 
 window.addEventListener('resize',()=>{if(CU&&imgs[CF])resetView();});
 setInterval(()=>{if(CU){if(getScriptUrl())sheetsRefresh();else{render();renderList();updateProg();}}},60000);
