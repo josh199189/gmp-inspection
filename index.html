@@ -713,12 +713,33 @@ async function syncUncheck(itemId,date){
 function updateSyncStatus(msg){const el=document.getElementById('sync-st');if(el)el.textContent=msg;}
 async function sheetsRefresh(){
   const url=getScriptUrl();if(!url)return;
-  try{const r=await fetch(url,{method:'POST',body:JSON.stringify({action:'getAllData',date:td(),floor:CF})});const data=await r.json();if(!data.ok)return;
-  const db=gdb();
-  (data.members||[]).forEach(m=>{if(!db.users.find(u=>u.name===m.name))db.users.push({id:m.id,name:m.name,pw:'',role:m.role,color:m.color,joinDate:''});});
-  (data.items||[]).forEach(item=>{const f=item.floor;if(!db.items[f])db.items[f]=[];if(!db.items[f].find(i=>i.id===item.id))db.items[f].push(item);});
-  (data.checks||[]).forEach(ck=>{const cks=getChecks(ck.itemId,td());if(!cks.find(c=>c.userId===ck.userId)){const member=db.users.find(u=>u.id===ck.userId);cks.push({userId:ck.userId,userName:ck.userName,color:member?member.color:'#94a3b8',time:ck.time});setChecks(ck.itemId,td(),cks);}});
-  sdb(db);render();renderList();updateProg();}catch(e){}
+  try{
+    // GET 방식으로 읽기 (Apps Script CORS 지원)
+    const params=new URLSearchParams({data:JSON.stringify({action:'getAllData',date:td(),floor:CF})});
+    const r=await fetch(url+'?'+params,{method:'GET'});
+    const data=await r.json();
+    if(!data.ok)return;
+    const db=gdb(),day=td();
+    // 시트 회원 정보 → 로컬 동기화
+    (data.members||[]).forEach(m=>{
+      if(!db.users.find(u=>u.name===m.name)){
+        const color=PALETTE[db.users.length%PALETTE.length];
+        db.users.push({id:'u'+Date.now()+'_'+m.name,name:m.name,pw:m.password||'',role:'manager',color,joinDate:m.joinDate||''});
+      }
+    });
+    // 시트의 체크 데이터를 로컬에 반영 (ON/OFF 상태 포함)
+    (data.checks||[]).forEach(ck=>{
+      const cks=getChecks(ck.itemId,day);
+      const myIdx=cks.findIndex(c=>c.userId===ck.userId);
+      const member=db.users.find(u=>u.id===ck.userId||u.name===ck.userName);
+      const color=member?member.color:'#94a3b8';
+      const newCk={userId:ck.userId,userName:ck.userName,color,time:ck.time,state:ck.state||'ON'};
+      if(myIdx>=0){cks[myIdx]=newCk;}else{cks.push(newCk);}
+      setChecks(ck.itemId,day,cks);
+    });
+    sdb(db);render();renderList();updateProg();
+    updateSyncStatus('🔄 시트 동기화: '+new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}));
+  }catch(e){updateSyncStatus('⚠️ 동기화 실패: '+e.message);}
 }
 window.addEventListener('resize',()=>{if(CU&&imgs[CF])resetView();});
 setInterval(()=>{if(CU){if(getScriptUrl())sheetsRefresh();else{render();renderList();updateProg();}}},60000);
