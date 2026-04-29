@@ -282,7 +282,7 @@ let canvas,ctx,sc=1,ox=0,oy=0,ptrs={},lastDist=0;
 const imgs={2:null,3:null};
 const td=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');};
 const now=()=>new Date().toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
-function gdb(){try{const r=localStorage.getItem(DB_KEY);if(r)return JSON.parse(r);}catch(e){}return {users:[],items:{2:[],3:[]},categories:{2:[],3:[]},checks:{},scriptUrl:'https://script.google.com/macros/s/AKfycbxzEjsCPqf6OHR9F-rxyXGRAhmJwp2q5HGTTimbMDgLJlKpAUQVjEfc5GrI93AAtwzxwQ/exec'};}
+function gdb(){try{const r=localStorage.getItem(DB_KEY);if(r)return JSON.parse(r);}catch(e){}return {users:[],items:{2:[],3:[]},categories:{2:[],3:[]},checks:{},scriptUrl:'https://script.google.com/macros/s/AKfycbwj47J0b-pG9XDbvQVZjFJT2Oezk2b6ESaSYpPi2f4d8ylO2irORpcRapU9jXRkqvCtAw/exec'};}
 function sdb(db){try{localStorage.setItem(DB_KEY,JSON.stringify(db));}catch(e){}}
 function getScriptUrl(){return gdb().scriptUrl||'';}
 function toast(msg,dur=2200){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),dur);}
