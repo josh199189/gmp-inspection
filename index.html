@@ -148,6 +148,26 @@ button,input{font-family:'Noto Sans KR',sans-serif;}
 .mbt.ok{background:var(--ac);color:white;} .mbt.no{background:var(--sf2);color:var(--tx2);border:1px solid var(--bd);}
 #toast{position:fixed;bottom:calc(74px + var(--sb));left:50%;transform:translateX(-50%) translateY(14px);background:var(--sf3);color:var(--tx);padding:10px 20px;border-radius:20px;font-size:12px;font-weight:500;opacity:0;transition:all .28s;pointer-events:none;border:1px solid var(--bd);z-index:500;white-space:nowrap;}
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* 마커 ON/OFF 팝업 */
+.marker-popup{position:fixed;bottom:0;left:0;right:0;z-index:300;display:none;align-items:flex-end;justify-content:center;background:#00000060;}
+.marker-popup.show{display:flex;}
+.mp-sheet{background:var(--sf);border-radius:20px 20px 0 0;width:100%;max-width:480px;padding:16px 20px calc(16px + var(--sb));}
+.mp-name{font-size:16px;font-weight:700;margin-bottom:4px;}
+.mp-cat{font-size:11px;color:var(--tx2);margin-bottom:14px;}
+.mp-onoff{display:flex;gap:10px;margin-bottom:10px;}
+.mp-on{flex:1;padding:14px;border-radius:12px;border:2px solid var(--bd);background:transparent;font-size:15px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .2s;}
+.mp-off{flex:1;padding:14px;border-radius:12px;border:2px solid var(--bd);background:transparent;font-size:15px;font-weight:700;cursor:pointer;font-family:'Noto Sans KR',sans-serif;transition:all .2s;}
+.mp-on.active{background:#06d6a022;border-color:#06d6a0;color:#06d6a0;}
+.mp-off.active{background:#ef444422;border-color:#ef4444;color:#ef4444;}
+.mp-on:active,.mp-off:active{opacity:.7;}
+.mp-who{font-size:11px;color:var(--tx2);text-align:center;min-height:18px;margin-bottom:10px;}
+.mp-close{width:100%;padding:11px;border-radius:10px;border:1px solid var(--bd);background:transparent;color:var(--tx2);font-size:13px;cursor:pointer;font-family:'Noto Sans KR',sans-serif;}
+
+/* 어드민 항목 이동 */
+.move-item-row{display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--sf2);border-radius:10px;margin-bottom:6px;}
+.move-item-nm{flex:1;font-size:13px;font-weight:600;}
+.move-cat-sel{background:var(--sf);border:1px solid var(--bd);border-radius:8px;padding:6px 10px;color:var(--tx);font-size:12px;outline:none;font-family:'Noto Sans KR',sans-serif;}
 </style>
 </head>
 <body>
@@ -247,10 +267,30 @@ button,input{font-family:'Noto Sans KR',sans-serif;}
       </div>
       <div class="sync-st" id="sync-st"></div>
     </div>
+    <div class="set-sec" id="cat-move-sec" style="display:none;">
+      <h4>📦 항목 카테고리 지정</h4>
+      <p style="font-size:12px;color:var(--tx2);margin-bottom:12px;line-height:1.6;">항목의 카테고리를 변경합니다.</p>
+      <div id="move-items-list"></div>
+      <button class="set-btn pri" onclick="saveCatMoves()" style="margin-top:8px;width:100%;">💾 변경 저장</button>
+    </div>
     <div class="set-sec"><h4>🗄️ 로컬 데이터</h4>
       <button class="set-btn" onclick="if(confirm('초기화하시겠습니까?')){localStorage.removeItem('gmp_v4');location.reload();}">🗑 전체 초기화</button>
     </div>
     <button class="set-btn pri" style="width:100%;margin-top:8px;" onclick="closeSettings()">닫기</button>
+  </div>
+</div>
+
+<div id="marker-popup" class="marker-popup" onclick="if(event.target===this)closeMarkerPopup()">
+  <div class="mp-sheet">
+    <div class="mhandle"></div>
+    <div class="mp-name" id="mp-name">항목명</div>
+    <div class="mp-cat" id="mp-cat">카테고리</div>
+    <div class="mp-who" id="mp-who"></div>
+    <div class="mp-onoff">
+      <button class="mp-on" id="mp-on-btn" onclick="markerSetOnOff('ON')">🟢 ON</button>
+      <button class="mp-off" id="mp-off-btn" onclick="markerSetOnOff('OFF')">🔴 OFF</button>
+    </div>
+    <button class="mp-close" onclick="closeMarkerPopup()">닫기</button>
   </div>
 </div>
 <div id="cat-modal" class="cat-modal" onclick="if(event.target===this)closeCatModal()">
@@ -372,7 +412,7 @@ function setupTouch(){
   },{passive:false});
   vm.addEventListener('touchend',e=>{
     const was1=Object.keys(ptrs).length===1;Array.from(e.changedTouches).forEach(t=>delete ptrs[t.identifier]);lastDist=0;
-    if(was1&&e.changedTouches.length===1&&(addMode||delMode)){const t=e.changedTouches[0],r=vm.getBoundingClientRect(),cx=(t.clientX-r.left-ox)/sc,cy=(t.clientY-r.top-oy)/sc;if(addMode)showMark(cx,cy);else{const i=findMark(cx,cy);if(i>=0)doDelMark(i);}}
+    if(was1&&e.changedTouches.length===1){const t=e.changedTouches[0],r=vm.getBoundingClientRect(),cx=(t.clientX-r.left-ox)/sc,cy=(t.clientY-r.top-oy)/sc;if(addMode)showMark(cx,cy);else if(delMode){const i=findMark(cx,cy);if(i>=0)doDelMark(i);}else{const i=findMark(cx,cy);if(i>=0)openMarkerPopup((gdb().items[CF]||[])[i]?.id);}}
   },{passive:false});
 }
 function setupMouse(){
@@ -380,7 +420,7 @@ function setupMouse(){
   vm.addEventListener('mousedown',e=>{if(addMode||delMode)return;drag=true;ds={x:e.clientX-ox,y:e.clientY-oy};});
   vm.addEventListener('mousemove',e=>{if(!drag)return;ox=e.clientX-ds.x;oy=e.clientY-ds.y;applyT();});
   vm.addEventListener('mouseup',()=>drag=false);
-  vm.addEventListener('click',e=>{if(!addMode&&!delMode)return;const r=vm.getBoundingClientRect(),cx=(e.clientX-r.left-ox)/sc,cy=(e.clientY-r.top-oy)/sc;if(addMode)showMark(cx,cy);else{const i=findMark(cx,cy);if(i>=0)doDelMark(i);}});
+  vm.addEventListener('click',e=>{const r=vm.getBoundingClientRect(),cx=(e.clientX-r.left-ox)/sc,cy=(e.clientY-r.top-oy)/sc;if(addMode)showMark(cx,cy);else if(delMode){const i=findMark(cx,cy);if(i>=0)doDelMark(i);}else{const i=findMark(cx,cy);if(i>=0)openMarkerPopup((gdb().items[CF]||[])[i]?.id);}});
   vm.addEventListener('wheel',e=>{e.preventDefault();const r=vm.getBoundingClientRect(),mx=e.clientX-r.left-ox,my=e.clientY-r.top-oy,ns=Math.max(.15,Math.min(8,sc*(e.deltaY>0?.9:1.1)));ox-=mx*(ns/sc-1);oy-=my*(ns/sc-1);sc=ns;applyT();render();},{passive:false});
 }
 function zoomIn(){const vm=document.getElementById('v-map'),ns=Math.min(8,sc*1.25);ox-=(vm.clientWidth/2-ox)*(ns/sc-1);oy-=(vm.clientHeight/2-oy)*(ns/sc-1);sc=ns;applyT();render();}
@@ -430,6 +470,103 @@ function updateCatSelect(){
   const sel=document.getElementById('m-cat');if(!sel)return;
   const db=gdb(),cats=db.categories?.[CF]||[];
   sel.innerHTML='<option value="">카테고리 없음</option>'+cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+
+// ─── 마커 팝업 (도면 탭에서 ON/OFF) ───────────────────
+let _popupItemId = null;
+
+function openMarkerPopup(itemId) {
+  if(!CU || CU.role==='superadmin') return; // 관리자는 팝업 없음
+  const db=gdb(), item=(db.items[CF]||[]).find(i=>i.id===itemId);
+  if(!item) return;
+  _popupItemId = itemId;
+  const day=td(), cks=getChecks(itemId,day);
+  const myCk=cks.find(c=>c.userId===CU.id);
+  const cats=db.categories?.[CF]||[];
+  const cat=cats.find(c=>c.id===item.categoryId);
+  
+  document.getElementById('mp-name').textContent=item.name;
+  document.getElementById('mp-cat').textContent=cat?('📂 '+cat.name):'📋 미분류';
+  
+  // 현재 상태 표시
+  const onBtn=document.getElementById('mp-on-btn');
+  const offBtn=document.getElementById('mp-off-btn');
+  onBtn.className='mp-on'+(myCk?.state==='ON'?' active':'');
+  offBtn.className='mp-off'+(myCk?.state==='OFF'?' active':'');
+  
+  // 다른 담당자 체크 상태
+  const others=cks.filter(c=>c.userId!==CU.id);
+  const whoText=others.length?others.map(c=>`<span style="color:${c.color}">${c.userName}</span>: <span class="state-chip ${c.state==='ON'?'on':'off'}">${c.state}</span>`).join(' &nbsp;'):'';
+  document.getElementById('mp-who').innerHTML=whoText;
+  
+  document.getElementById('marker-popup').classList.add('show');
+}
+
+function closeMarkerPopup() {
+  document.getElementById('marker-popup').classList.remove('show');
+  _popupItemId=null;
+}
+
+async function markerSetOnOff(state) {
+  if(!_popupItemId || !CU) return;
+  await setOnOff(_popupItemId, state);
+  // 팝업 버튼 상태 갱신
+  const day=td(), cks=getChecks(_popupItemId,day);
+  const myCk=cks.find(c=>c.userId===CU.id);
+  document.getElementById('mp-on-btn').className='mp-on'+(myCk?.state==='ON'?' active':'');
+  document.getElementById('mp-off-btn').className='mp-off'+(myCk?.state==='OFF'?' active':'');
+  const others=cks.filter(c=>c.userId!==CU.id);
+  const whoText=others.length?others.map(c=>`<span style="color:${c.color}">${c.userName}</span>: <span class="state-chip ${c.state==='ON'?'on':'off'}">${c.state}</span>`).join(' &nbsp;'):'';
+  document.getElementById('mp-who').innerHTML=whoText;
+  render(); // 도면 마커 색상 갱신
+}
+
+// ─── 어드민: 항목 카테고리 이동 ────────────────────────
+function renderMoveItems() {
+  const db=gdb(), cats=db.categories?.[CF]||[], items=db.items[CF]||[];
+  const list=document.getElementById('move-items-list');
+  if(!list) return;
+  if(!items.length) { list.innerHTML='<p style="font-size:12px;color:var(--tx3);">등록된 항목이 없습니다</p>'; return; }
+  list.innerHTML=items.map(item=>{
+    const cat=cats.find(c=>c.id===item.categoryId);
+    const catOpts=['<option value="">미분류</option>',...cats.map(c=>`<option value="${c.id}"${c.id===item.categoryId?' selected':''}>${c.name}</option>`)].join('');
+    return `<div class="move-item-row" data-item-id="${item.id}">
+      <div class="move-item-nm">${item.name}<div style="font-size:10px;color:var(--tx2);">${cat?cat.name:'미분류'}</div></div>
+      <select class="move-cat-sel" onchange="previewCatMove('${item.id}',this.value)">${catOpts}</select>
+    </div>`;
+  }).join('');
+}
+
+function previewCatMove(itemId, catId) {
+  // 선택만 저장, 실제 저장은 saveCatMoves에서
+  const row = document.querySelector(`.move-item-row[data-item-id="${itemId}"]`);
+  if(row) row.dataset.newCat = catId;
+}
+
+function saveCatMoves() {
+  const db=gdb(), cats=db.categories?.[CF]||[];
+  const rows=document.querySelectorAll('.move-item-row');
+  let changed=0;
+  rows.forEach(row=>{
+    const itemId=row.dataset.itemId, newCatId=row.querySelector('select').value;
+    const item=(db.items[CF]||[]).find(i=>i.id===itemId);
+    if(item && item.categoryId !== newCatId) {
+      const cat=cats.find(c=>c.id===newCatId);
+      item.categoryId=newCatId;
+      item.categoryName=cat?.name||'';
+      changed++;
+    }
+  });
+  if(changed>0) {
+    sdb(db);
+    renderList();
+    renderMoveItems();
+    syncAllItems(CF);
+    toast(`✅ ${changed}개 항목 카테고리 변경됨`);
+  } else {
+    toast('변경된 항목이 없습니다');
+  }
 }
 
 function toggleAdd(){if(CU?.role!=='superadmin')return;delMode=false;document.getElementById('del-btn').classList.remove('on');
@@ -509,7 +646,14 @@ function renderList(){
 }
 function goMap(itemId){const item=(gdb().items[CF]||[]).find(i=>i.id===itemId);if(!item)return;switchTab('map');setTimeout(()=>{const vm=document.getElementById('v-map');ox=vm.clientWidth/2-item.x*sc;oy=vm.clientHeight/2-item.y*sc;applyT();render();},60);}
 function updateProg(){const db=gdb(),its=db.items[CF]||[],mTotal=db.users.length||1,day=td(),full=its.filter(i=>getChecks(i.id,day).length>=mTotal).length,pct=its.length===0?0:Math.round(full/its.length*100);document.getElementById('pfill').style.width=pct+'%';document.getElementById('prog-big').textContent=pct+'%';document.getElementById('prog-sub').textContent='전원완료 '+full+' / '+its.length+' 항목';}
-function openSettings(){document.getElementById('s-set').classList.remove('off');document.getElementById('url-input').value=getScriptUrl();updateSyncBadge();}
+function openSettings(){
+  document.getElementById('s-set').classList.remove('off');
+  document.getElementById('url-input').value=getScriptUrl();
+  updateSyncBadge();
+  const sec=document.getElementById('cat-move-sec');
+  if(sec) sec.style.display=CU?.role==='superadmin'?'block':'none';
+  if(CU?.role==='superadmin') renderMoveItems();
+}
 function closeSettings(){document.getElementById('s-set').classList.add('off');}
 function saveUrl(){const url=document.getElementById('url-input').value.trim(),db=gdb();db.scriptUrl=url;sdb(db);updateSyncBadge();toast(url?'✅ 구글 시트 연동 저장됨':'연동 해제됨');closeSettings();if(url)sheetsRefresh();}
 function updateSyncBadge(){const b=document.getElementById('sync-badge'),url=getScriptUrl();b.textContent=url?'SHEETS':'로컬';b.className='sync-badge '+(url?'on':'off');}
