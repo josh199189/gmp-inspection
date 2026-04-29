@@ -105,6 +105,26 @@ button,input{font-family:'Noto Sans KR',sans-serif;}
 .state-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:12px;font-size:10px;font-weight:700;}
 .state-chip.on{background:#06d6a022;color:#06d6a0;}
 .state-chip.off{background:#ef444422;color:#ef4444;}
+/* 카테고리 아코디언 */
+.cat-block{background:var(--sf);border:1px solid var(--bd);border-radius:14px;margin-bottom:10px;overflow:hidden;}
+.cat-block.has-done{border-color:#06d6a044;}
+.cat-block.has-part{border-color:#f59e0b44;}
+.cat-hd{display:flex;align-items:center;justify-content:space-between;padding:13px 15px;cursor:pointer;user-select:none;-webkit-user-select:none;}
+.cat-hd-left{display:flex;align-items:center;gap:9px;flex:1;min-width:0;}
+.cat-ico{font-size:18px;flex-shrink:0;}
+.cat-hd-name{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.cat-hd-right{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.cat-prog{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--tx2);}
+.cat-arrow{font-size:11px;color:var(--tx3);transition:transform .2s;}
+.cat-arrow.open{transform:rotate(180deg);}
+.cat-body{border-top:1px solid var(--bd);padding:10px;}
+.cat-body.closed{display:none;}
+.cat-add-item-btn{width:100%;padding:10px;border-radius:9px;border:1px dashed var(--ac);background:transparent;color:var(--ac);font-size:12px;font-weight:600;cursor:pointer;margin-top:6px;display:flex;align-items:center;justify-content:center;gap:5px;font-family:'Noto Sans KR',sans-serif;}
+.cat-add-item-btn:active{opacity:.7;}
+.cat-empty{text-align:center;padding:16px 0;color:var(--tx3);font-size:12px;}
+.ci{background:var(--sf2);border:1px solid var(--bd);border-radius:11px;padding:12px;margin-bottom:7px;}
+.ci:last-child{margin-bottom:0;}
+
 .cat-header{display:flex;align-items:center;justify-content:space-between;padding:10px 0 6px;margin-bottom:4px;border-bottom:2px solid var(--ac);margin-top:14px;}
 .cat-header:first-child{margin-top:0;}
 .cat-title{font-size:13px;font-weight:700;color:var(--ac);letter-spacing:.04em;display:flex;align-items:center;gap:6px;}
@@ -235,7 +255,7 @@ button,input{font-family:'Noto Sans KR',sans-serif;}
       <div class="card"><div class="card-title">👥 등록 회원</div><div class="chips" id="mgr-chips"></div></div>
       <div class="adm-bar" id="adm-bar" style="display:none;">
         <button class="adm-btn" id="add-btn" onclick="toggleAdd()">📍 항목 추가</button>
-        <button class="adm-btn" id="cat-btn" onclick="openCatManager()">📂 카테고리</button>
+        <button class="adm-btn" id="cat-btn" onclick="openCatManager()">📂 카테고리 관리</button>
         <button class="adm-btn d" id="del-btn" onclick="toggleDel()">🗑 삭제</button>
       </div>
       <div id="cat-manager" style="display:none;margin-bottom:10px;padding:12px;background:var(--sf2);border-radius:12px;border:1px solid var(--bd);">
@@ -305,13 +325,14 @@ button,input{font-family:'Noto Sans KR',sans-serif;}
 <div id="mover" onclick="if(event.target===this)cancelMark()">
   <div class="msheet">
     <div class="mhandle"></div>
-    <label>📍 점검 항목 이름</label>
-    <input class="minput" type="text" id="m-name" placeholder="예: 보일러 ON/OFF 확인" onkeydown="if(event.key==='Enter')confirmMark()"/>
-    <label style="display:block;font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:8px;margin-top:12px;letter-spacing:.05em;">카테고리 선택</label>
+    <div style="font-size:15px;font-weight:700;margin-bottom:14px;">📍 점검 항목 추가</div>
+    <label style="display:block;font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:6px;letter-spacing:.05em;">카테고리</label>
     <select id="m-cat" style="width:100%;background:var(--sf2);border:1px solid var(--bd);border-radius:11px;padding:13px 14px;color:var(--tx);font-size:14px;outline:none;margin-bottom:12px;font-family:'Noto Sans KR',sans-serif;-webkit-appearance:none;">
-      <option value="">카테고리 없음</option>
+      <option value="">미분류</option>
     </select>
-    <div class="mbt-row"><button class="mbt ok" onclick="confirmMark()">추가</button><button class="mbt no" onclick="cancelMark()">취소</button></div>
+    <label style="display:block;font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:6px;letter-spacing:.05em;">항목 이름</label>
+    <input class="minput" type="text" id="m-name" placeholder="예: 냉각탑 팬 모터" onkeydown="if(event.key==='Enter')confirmMark()"/>
+    <div class="mbt-row" style="margin-top:14px;"><button class="mbt ok" onclick="confirmMark()">추가</button><button class="mbt no" onclick="cancelMark()">취소</button></div>
   </div>
 </div>
 <div id="toast"></div>
@@ -466,10 +487,12 @@ function delCat(catId){
   sdb(db);renderCatManager();renderList();updateCatSelect();
   toast('🗑 카테고리 삭제됨');
 }
-function updateCatSelect(){
+function updateCatSelect(preselect){
   const sel=document.getElementById('m-cat');if(!sel)return;
   const db=gdb(),cats=db.categories?.[CF]||[];
-  sel.innerHTML='<option value="">카테고리 없음</option>'+cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  sel.innerHTML='<option value="">미분류</option>'+cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  const pid=preselect||window._pendingCatId||'';
+  if(pid){sel.value=pid;}
 }
 
 
@@ -573,17 +596,24 @@ function toggleAdd(){if(CU?.role!=='superadmin')return;delMode=false;document.ge
   document.getElementById('cat-manager').style.display='none';document.getElementById('cat-btn').classList.remove('on');
   addMode=!addMode;document.getElementById('add-btn').classList.toggle('on',addMode);const p=document.getElementById('mpill');p.className='mpill'+(addMode?' show add':'');p.textContent=addMode?'📍 도면에서 위치 탭':'';if(addMode){switchTab('map');toast('도면을 탭하여 점검 항목을 추가하세요');}}
 function toggleDel(){if(CU?.role!=='superadmin')return;addMode=false;document.getElementById('add-btn').classList.remove('on');delMode=!delMode;document.getElementById('del-btn').classList.toggle('on',delMode);const p=document.getElementById('mpill');p.className='mpill'+(delMode?' show del':'');p.textContent=delMode?'🗑 삭제할 마커 탭':'';if(delMode){switchTab('map');toast('삭제할 마커를 탭하세요');}renderList();}
-function showMark(cx,cy){pending={x:cx,y:cy};document.getElementById('mover').classList.add('show');const inp=document.getElementById('m-name');inp.value='';inp.focus();}
+function showMark(cx,cy){
+  pending={x:cx,y:cy};
+  updateCatSelect(window._pendingCatId);
+  document.getElementById('m-name').value='';
+  document.getElementById('mover').classList.add('show');
+  setTimeout(()=>document.getElementById('m-name').focus(),200);
+}
 function confirmMark(){
   const name=document.getElementById('m-name').value.trim();if(!name){document.getElementById('m-name').focus();return;}
-  const catId=document.getElementById('m-cat')?.value||'';
+  const catId=document.getElementById('m-cat')?.value||window._pendingCatId||'';
+  window._pendingCatId=null;
   const db=gdb(),cats=db.categories?.[CF]||[];
   const cat=cats.find(c=>c.id===catId);
   const item={id:'itm_'+Date.now(),floor:CF,name,categoryId:catId,categoryName:cat?.name||'',x:pending.x,y:pending.y,createdBy:CU.name,createdAt:td()};
   if(!db.items[CF])db.items[CF]=[];db.items[CF].push(item);sdb(db);
   cancelMark();render();renderList();updateProg();toast('✅ 추가됨: '+name);syncItem(item);
 }
-function cancelMark(){document.getElementById('mover').classList.remove('show');pending=null;}
+function cancelMark(){window._pendingCatId=null;document.getElementById('mover').classList.remove('show');pending=null;}
 function doDelMark(idx){const db=gdb(),item=db.items[CF][idx];if(!item||!confirm('"'+item.name+'" 항목을 삭제하시겠습니까?'))return;db.items[CF].splice(idx,1);sdb(db);render();renderList();updateProg();toast('🗑 삭제됨: '+item.name);syncDelItem(item.id, CF);}
 function doDelById(id){const idx=(gdb().items[CF]||[]).findIndex(i=>i.id===id);if(idx>=0)doDelMark(idx);}
 function getChecks(itemId,date){const db=gdb(),key=date+'_'+itemId;return db.checks[key]||[];}
@@ -613,11 +643,18 @@ async function setOnOff(itemId,state){
 }
 function renderList(){
   const db=gdb(),its=db.items[CF]||[],members=db.users||[],day=td();
-  document.getElementById('mgr-chips').innerHTML=members.length?members.map(m=>{const me=CU&&CU.id===m.id;return `<div class="chip" style="background:${m.color}18;border-color:${m.color}${me?'':'44'};"><div class="cdot" style="background:${m.color}"></div><span style="color:${m.color};${me?'font-weight:700;':''}">${m.name}${me?' ★':''}</span></div>`;} ).join(''):'<span style="font-size:12px;color:var(--tx3);">가입한 회원이 없습니다</span>';
+  // 담당자 칩
+  document.getElementById('mgr-chips').innerHTML=members.length?members.map(m=>{const me=CU&&CU.id===m.id;return `<div class="chip" style="background:${m.color}18;border-color:${m.color}${me?'':'44'};"><div class="cdot" style="background:${m.color}"></div><span style="color:${m.color};${me?'font-weight:700;':''}">${m.name}${me?' ★':''}</span></div>`;}).join(''):'<span style="font-size:12px;color:var(--tx3);">가입한 회원이 없습니다</span>';
   const area=document.getElementById('ci-area');
-  if(!its.length){area.innerHTML=`<div class="empty"><div class="ico">📋</div>${CU?.role==='superadmin'?'도면에서 점검 항목을 추가하세요':'점검 항목이 없습니다'}</div>`;return;}
-  // 카테고리별 그룹핑
   const cats=db.categories?.[CF]||[];
+  const isAdmin=CU?.role==='superadmin';
+
+  if(!cats.length&&!its.length){
+    area.innerHTML=`<div class="empty"><div class="ico">📂</div>${isAdmin?'먼저 카테고리를 추가하세요':'점검 항목이 없습니다'}</div>`;
+    return;
+  }
+
+  // 항목 렌더 함수
   const renderItem=(item,i)=>{
     const cks=getChecks(item.id,day),total=members.length,done=cks.length;
     const onCount=cks.filter(c=>c.state==='ON'||!c.state).length,offCount=cks.filter(c=>c.state==='OFF').length;
@@ -626,91 +663,83 @@ function renderList(){
     const unchecked=members.filter(m=>!cks.find(c=>c.userId===m.id));
     const unchHtml=unchecked.length&&done>0?`<div class="ck-undone">미점검: ${unchecked.map(m=>`<span style="color:${m.color}">${m.name}</span>`).join(', ')}</div>`:'';
     const myCk=cks.find(c=>c.userId===CU?.id);const myState=myCk?.state;
-    const chkBtn=CU?.role==='superadmin'?'<div class="onoff-row"><button class="onoff-btn nop" disabled>🔒 관리자 점검 불가</button></div>':`<div class="onoff-row"><button class="onoff-btn ${myState==='ON'?'on-active':'on-idle'}" onclick="setOnOff('${item.id}','ON')">🟢 ON${myState==='ON'?' ✓':''}</button><button class="onoff-btn ${myState==='OFF'?'off-active':'off-idle'}" onclick="setOnOff('${item.id}','OFF')">🔴 OFF${myState==='OFF'?' ✓':''}</button></div>`;
-    const delBtnHtml=delMode&&CU?.role==='superadmin'?`<button class="del-sm" onclick="event.stopPropagation();doDelById('${item.id}')">삭제</button>`:'';
-    return `<div class="ci ${cls} ${delMode?'dm':''}"><div class="ci-hd"><div class="ci-nm">${item.name}</div><div class="ci-meta"><div class="cnt ${cntCls}" title="${onCount}ON ${offCount}OFF">${done}/${total||'?'}${done>0?` <small style='font-size:9px;opacity:.7'>${onCount>0?'🟢'+onCount:''}${offCount>0?'🔴'+offCount:''}</small>`:''}</div><div class="ci-num">#${i+1}</div>${delBtnHtml}</div></div><div class="ck-done">${checkedHtml}</div>${unchHtml}${chkBtn}<button class="go-btn" onclick="goMap('${item.id}')">🗺 도면에서 위치 보기</button></div>`;
+    const chkBtn=isAdmin?'<div class="onoff-row"><button class="onoff-btn nop" disabled>🔒 관리자 점검 불가</button></div>':`<div class="onoff-row"><button class="onoff-btn ${myState==='ON'?'on-active':'on-idle'}" onclick="setOnOff('${item.id}','ON')">🟢 ON${myState==='ON'?' ✓':''}</button><button class="onoff-btn ${myState==='OFF'?'off-active':'off-idle'}" onclick="setOnOff('${item.id}','OFF')">🔴 OFF${myState==='OFF'?' ✓':''}</button></div>`;
+    const delBtnHtml=delMode&&isAdmin?`<button class="del-sm" onclick="event.stopPropagation();doDelById('${item.id}')">삭제</button>`:'';
+    const mapPos=item.x?`<button class="go-btn" onclick="goMap('${item.id}')">🗺 도면 위치</button>`:'<span style="font-size:11px;color:var(--tx3);">📍 위치 미설정</span>';
+    return `<div class="ci ${cls} ${delMode?'dm':''}"><div class="ci-hd"><div class="ci-nm">${item.name}</div><div class="ci-meta"><div class="cnt ${cntCls}" title="${onCount}ON ${offCount}OFF">${done}/${total||'?'}${done>0?` <small style='font-size:9px;opacity:.7'>${onCount>0?'🟢'+onCount:''}${offCount>0?'🔴'+offCount:''}</small>`:''}</div><div class="ci-num">#${i+1}</div>${delBtnHtml}</div></div><div class="ck-done">${checkedHtml}</div>${unchHtml}${chkBtn}${mapPos}</div>`;
   };
-  // 카테고리가 있으면 그룹별로, 없으면 단순 목록
-  if(cats.length>0){
-    const grouped=cats.map(cat=>{
-      const catItems=its.filter(it=>it.categoryId===cat.id);
-      if(!catItems.length)return '';
-      return `<div class="cat-header"><div class="cat-title"><span>📂</span>${cat.name}</div><span class="cat-cnt">${catItems.length}개</span></div>`+catItems.map((item,i)=>renderItem(item,i)).join('');
-    });
-    const uncatItems=its.filter(it=>!it.categoryId||!cats.find(c=>c.id===it.categoryId));
-    const uncatHtml=uncatItems.length?`<div class="cat-header"><div class="cat-title"><span>📋</span>미분류</div><span class="cat-cnt">${uncatItems.length}개</span></div>`+uncatItems.map((item,i)=>renderItem(item,i)).join(''):'';
-    area.innerHTML=grouped.join('')+uncatHtml;
-  } else {
-    area.innerHTML=its.map((item,i)=>renderItem(item,i)).join('');
+
+  // 카테고리 아코디언 렌더
+  const expanded=window._catExpanded||(window._catExpanded={});
+
+  // 카테고리 없으면 단순 목록
+  if(!cats.length){
+    area.innerHTML=its.map((item,i)=>renderItem(item,i)).join('')||'<div class="empty"><div class="ico">📋</div>점검 항목이 없습니다</div>';
+    return;
   }
-}
-function goMap(itemId){const item=(gdb().items[CF]||[]).find(i=>i.id===itemId);if(!item)return;switchTab('map');setTimeout(()=>{const vm=document.getElementById('v-map');ox=vm.clientWidth/2-item.x*sc;oy=vm.clientHeight/2-item.y*sc;applyT();render();},60);}
-function updateProg(){const db=gdb(),its=db.items[CF]||[],mTotal=db.users.length||1,day=td(),full=its.filter(i=>getChecks(i.id,day).length>=mTotal).length,pct=its.length===0?0:Math.round(full/its.length*100);document.getElementById('pfill').style.width=pct+'%';document.getElementById('prog-big').textContent=pct+'%';document.getElementById('prog-sub').textContent='전원완료 '+full+' / '+its.length+' 항목';}
-function openSettings(){
-  document.getElementById('s-set').classList.remove('off');
-  document.getElementById('url-input').value=getScriptUrl();
-  updateSyncBadge();
-  const sec=document.getElementById('cat-move-sec');
-  if(sec) sec.style.display=CU?.role==='superadmin'?'block':'none';
-  if(CU?.role==='superadmin') renderMoveItems();
-}
-function closeSettings(){document.getElementById('s-set').classList.add('off');}
-function saveUrl(){const url=document.getElementById('url-input').value.trim(),db=gdb();db.scriptUrl=url;sdb(db);updateSyncBadge();toast(url?'✅ 구글 시트 연동 저장됨':'연동 해제됨');closeSettings();if(url)sheetsRefresh();}
-function updateSyncBadge(){const b=document.getElementById('sync-badge'),url=getScriptUrl();b.textContent=url?'SHEETS':'로컬';b.className='sync-badge '+(url?'on':'off');}
-async function testConn(){const url=document.getElementById('url-input').value.trim(),st=document.getElementById('sync-st');if(!url){toast('⚠️ URL을 먼저 입력하세요');return;}st.textContent='연결 테스트 중...';try{const r=await fetch(url,{method:'POST',body:JSON.stringify({action:'login',name:'__test__',password:'__test__'})});const d=await r.json();st.textContent='✅ 연결 성공';}catch(e){st.textContent='❌ 연결 실패: '+e.message;}}
-async function sheetsPost(params){
-  const url=getScriptUrl();if(!url)return null;
-  try{
-    // POST with no-cors for cross-origin Apps Script
-    await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify(params)});
-    return {ok:true};
-  }catch(e){
-    try{// GET fallback
-      const p=new URLSearchParams({data:JSON.stringify(params)});
-      await fetch(url+'?'+p,{mode:'no-cors'});
-      return {ok:true};
-    }catch(e2){console.error('sheets:',e2);return {ok:false,error:e2.message};}
-  }
-}
-async function syncUser(user){await sheetsPost({action:'register',name:user.name,password:user.pw});}
-async function syncItem(item){
-  const result=await sheetsPost({
-    action:'addItem',
-    floor:item.floor,
-    floorName:item.floor===2?'2층 고형제':'3층 액상',
-    itemId:item.id,
-    itemName:item.name,
-    categoryId:item.categoryId||'',
-    categoryName:item.categoryName||'미분류',
-    x:item.x, y:item.y,
-    createdBy:item.createdBy,
-    createdAt:item.createdAt
+
+  let html='';
+  cats.forEach(cat=>{
+    const catItems=its.filter(it=>it.categoryId===cat.id);
+    const totalItems=catItems.length;
+    const day2=td();
+    // 카테고리 진행 상태
+    let catDone=0,catTotal=members.length*totalItems;
+    catItems.forEach(item=>{catDone+=getChecks(item.id,day2).length;});
+    const pct=catTotal>0?Math.round(catDone/catTotal*100):0;
+    const catCls=pct===100&&catTotal>0?'has-done':pct>0?'has-part':'';
+    const isOpen=expanded[cat.id]!==false; // 기본 열림
+    const addBtn=isAdmin?`<button class="cat-add-item-btn" onclick="startAddInCat('${cat.id}')">＋ 이 카테고리에 항목 추가</button>`:'';
+    const itemsHtml=catItems.length?catItems.map((item,i)=>renderItem(item,i)).join(''):`<div class="cat-empty">항목이 없습니다${isAdmin?' — 아래 버튼으로 추가하세요':''}</div>`;
+    html+=`<div class="cat-block ${catCls}" id="catb_${cat.id}">
+      <div class="cat-hd" onclick="toggleCat('${cat.id}')">
+        <div class="cat-hd-left"><span class="cat-ico">📂</span><span class="cat-hd-name">${cat.name}</span></div>
+        <div class="cat-hd-right">
+          <span class="cat-prog">${catItems.length}개 · ${pct}%</span>
+          <span class="cat-arrow ${isOpen?'open':''}">▼</span>
+        </div>
+      </div>
+      <div class="cat-body ${isOpen?'':'closed'}" id="catbody_${cat.id}">${itemsHtml}${addBtn}</div>
+    </div>`;
   });
-  if(result?.ok)updateSyncStatus('✅ 항목 시트 반영: '+item.name);
-  // 전체 항목 목록도 동기화
-  await syncAllItems(item.floor);
+
+  // 미분류 항목
+  const uncatItems=its.filter(it=>!it.categoryId||!cats.find(c=>c.id===it.categoryId));
+  if(uncatItems.length){
+    const isOpen=expanded['__uncat__']!==false;
+    const addBtn=isAdmin?`<button class="cat-add-item-btn" onclick="startAddInCat('')">＋ 미분류에 항목 추가</button>`:'';
+    html+=`<div class="cat-block" id="catb___uncat__">
+      <div class="cat-hd" onclick="toggleCat('__uncat__')">
+        <div class="cat-hd-left"><span class="cat-ico">📋</span><span class="cat-hd-name">미분류</span></div>
+        <div class="cat-hd-right"><span class="cat-prog">${uncatItems.length}개</span><span class="cat-arrow ${isOpen?'open':''}">▼</span></div>
+      </div>
+      <div class="cat-body ${isOpen?'':'closed'}" id="catbody___uncat__">${uncatItems.map((item,i)=>renderItem(item,i)).join('')}${addBtn}</div>
+    </div>`;
+  }
+
+  area.innerHTML=html||`<div class="empty"><div class="ico">📂</div>${isAdmin?'카테고리에 항목을 추가하세요':'점검 항목이 없습니다'}</div>`;
 }
-async function syncDelItem(itemId, floor){
-  await sheetsPost({action:'deleteItem', itemId, floor: floor||CF});
-  await syncAllItems(floor||CF);
+function toggleCat(catId){
+  if(!window._catExpanded)window._catExpanded={};
+  const body=document.getElementById('catbody_'+catId);
+  const arrow=document.querySelector('#catb_'+catId+' .cat-arrow');
+  const isOpen=body&&body.classList.contains('closed')===false;
+  if(body)body.classList.toggle('closed',isOpen);
+  if(arrow)arrow.classList.toggle('open',!isOpen);
+  window._catExpanded[catId]=!isOpen;
 }
-async function syncAllItems(floor){
-  const db=gdb(),items=(db.items[floor]||[]);
-  const cats=(db.categories?.[floor]||[]);
-  await sheetsPost({action:'syncItems', floor, items, categories:cats});
+function startAddInCat(catId){
+  // 카테고리 미리 선택 후 항목 추가 모드 진입
+  if(!addMode){addMode=true;document.getElementById('add-btn').classList.add('on');}
+  window._pendingCatId=catId;
+  // 선택된 카테고리 표시
+  const db=gdb(),cats=db.categories?.[CF]||[];
+  const cat=cats.find(c=>c.id===catId);
+  toast((cat?'📂 '+cat.name:'미분류')+'에 추가할 위치를 도면에서 탭하세요');
+  switchTab('map');
 }
-async function syncCheck(data){
-  const db2=gdb(),item2=(db2.items[data.floor]||[]).find(i=>i.id===data.itemId);
-  const payload={action:'check',floor:data.floor,floorName:data.floor===2?'2층 고형제':'3층 액상',categoryId:item2?.categoryId||'',categoryName:item2?.categoryName||'미분류',itemId:data.itemId,itemName:data.itemName,userId:data.userId,userName:data.userName,date:data.date,time:data.time,state:data.state||'ON'};
-  const result=await sheetsPost(payload);
-  if(result?.ok)updateSyncStatus('✅ 시트 동기화 완료: '+data.time);
-  else if(result?.error)updateSyncStatus('⚠️ 시트 오류: '+result.error);
-}
-async function syncUncheck(itemId,date){
-  const result=await sheetsPost({action:'uncheck',itemId,userId:CU.id,date});
-  if(result?.ok)updateSyncStatus('↩ 취소 동기화');
-}
-function updateSyncStatus(msg){const el=document.getElementById('sync-st');if(el)el.textContent=msg;}
+
+
 async function sheetsRefresh(){
   const url=getScriptUrl();if(!url)return;
   try{
