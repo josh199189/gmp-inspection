@@ -94,6 +94,17 @@ button,input{font-family:'Noto Sans KR',sans-serif;}
 .my-btn.can{color:var(--warn);border-color:#f59e0b44;} .my-btn.can:active{background:#f59e0b11;}
 .my-btn.did{color:var(--ac2);border-color:#06d6a033;background:#06d6a009;}
 .my-btn.nop{color:var(--tx3);opacity:.5;cursor:not-allowed;}
+.onoff-row{display:flex;gap:8px;margin-top:8px;}
+.onoff-btn{flex:1;padding:12px 8px;border-radius:10px;border:2px solid var(--bd);background:transparent;font-size:14px;font-weight:700;cursor:pointer;transition:all .2s;font-family:'Noto Sans KR',sans-serif;display:flex;align-items:center;justify-content:center;gap:5px;}
+.onoff-btn.on-active{background:#06d6a022;border-color:#06d6a0;color:#06d6a0;}
+.onoff-btn.off-active{background:#ef444422;border-color:#ef4444;color:#ef4444;}
+.onoff-btn.on-idle{color:var(--tx2);}
+.onoff-btn.off-idle{color:var(--tx2);}
+.onoff-btn:active{opacity:.75;}
+.onoff-btn.nop{opacity:.4;cursor:not-allowed;}
+.state-chip{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:12px;font-size:10px;font-weight:700;}
+.state-chip.on{background:#06d6a022;color:#06d6a0;}
+.state-chip.off{background:#ef444422;color:#ef4444;}
 .go-btn{width:100%;padding:10px;border-radius:9px;border:1px solid var(--bd);background:transparent;color:var(--tx2);font-size:12px;cursor:pointer;margin-top:7px;display:flex;align-items:center;justify-content:center;gap:4px;}
 .go-btn:active{background:var(--sf2);} .del-sm{padding:6px 11px;background:var(--err);border:none;color:white;border-radius:7px;font-size:12px;cursor:pointer;font-weight:600;}
 .empty{text-align:center;padding:52px 20px;color:var(--tx3);font-size:14px;line-height:2.2;} .empty .ico{font-size:42px;margin-bottom:12px;}
