@@ -356,12 +356,27 @@ function doDelMark(idx){const db=gdb(),item=db.items[CF][idx];if(!item||!confirm
 function doDelById(id){const idx=(gdb().items[CF]||[]).findIndex(i=>i.id===id);if(idx>=0)doDelMark(idx);}
 function getChecks(itemId,date){const db=gdb(),key=date+'_'+itemId;return db.checks[key]||[];}
 function setChecks(itemId,date,arr){const db=gdb(),key=date+'_'+itemId;db.checks[key]=arr;sdb(db);}
-function toggleCheck(itemId){
-  if(CU?.role==='superadmin'){toast('⚠️ 최고관리자는 점검 체크 불가');return;}
+function toggleCheck(itemId){setOnOff(itemId,'ON');}
+async function setOnOff(itemId,state){
+  if(CU?.role==='superadmin'){toast('⚠️ 최고관리자는 점검 불가');return;}
   const db=gdb(),item=(db.items[CF]||[]).find(i=>i.id===itemId);if(!item)return;
   const day=td(),cks=getChecks(itemId,day),myIdx=cks.findIndex(c=>c.userId===CU.id);
-  if(myIdx>=0){cks.splice(myIdx,1);setChecks(itemId,day,cks);toast('↩ 점검 취소: '+item.name);syncUncheck(itemId,day);}
-  else{const ck={userId:CU.id,userName:CU.name,color:CU.color,time:now()};cks.push(ck);setChecks(itemId,day,cks);toast('✅ 점검 완료: '+item.name);syncCheck({itemId,itemName:item.name,floor:CF,userId:CU.id,userName:CU.name,date:day,time:ck.time});}
+  const ck={userId:CU.id,userName:CU.name,color:CU.color,time:now(),state:state};
+  if(myIdx>=0){
+    if(cks[myIdx].state===state){// 같은 상태 다시 누르면 취소
+      cks.splice(myIdx,1);setChecks(itemId,day,cks);
+      toast('↩ 점검 취소: '+item.name);
+      await syncUncheck(itemId,day);
+    } else {
+      cks[myIdx]=ck;setChecks(itemId,day,cks);
+      toast((state==='ON'?'🟢 ON':'🔴 OFF')+' 변경: '+item.name);
+      await syncCheck({itemId,itemName:item.name,floor:CF,userId:CU.id,userName:CU.name,date:day,time:ck.time,state:state});
+    }
+  } else {
+    cks.push(ck);setChecks(itemId,day,cks);
+    toast((state==='ON'?'🟢 ON':'🔴 OFF')+': '+item.name);
+    await syncCheck({itemId,itemName:item.name,floor:CF,userId:CU.id,userName:CU.name,date:day,time:ck.time,state:state});
+  }
   render();renderList();updateProg();
 }
 function renderList(){
@@ -371,13 +386,16 @@ function renderList(){
   if(!its.length){area.innerHTML=`<div class="empty"><div class="ico">📋</div>${CU?.role==='superadmin'?'도면에서 점검 항목을 추가하세요':'점검 항목이 없습니다'}</div>`;return;}
   area.innerHTML=its.map((item,i)=>{
     const cks=getChecks(item.id,day),total=members.length,done=cks.length;
+    const onCount=cks.filter(c=>c.state==='ON'||!c.state).length,offCount=cks.filter(c=>c.state==='OFF').length;
     const cls=done===0?'':done>=total&&total>0?'done':'part',cntCls=done>=total&&total>0?'g':done===0?'r':'y';
-    const checkedHtml=cks.length?cks.map(ck=>{const me=CU&&ck.userId===CU.id;return `<div class="ck-chip${me?' me':''}" style="background:${ck.color}22;border-color:${ck.color}44;color:${ck.color};"><div class="cdot" style="background:${ck.color};width:7px;height:7px;border-radius:50%;flex-shrink:0;"></div>${ck.userName} · ${ck.time}</div>`;}).join(''):'<div class="ck-empty">아직 확인한 담당자가 없습니다</div>';
+    // ON/OFF 상태 표시
+    const checkedHtml=cks.length?cks.map(ck=>{const me=CU&&ck.userId===CU.id;const st=ck.state||'ON';return `<div class="ck-chip${me?' me':''}" style="background:${ck.color}22;border-color:${ck.color}44;color:${ck.color};"><div class="cdot" style="background:${ck.color};width:7px;height:7px;border-radius:50%;flex-shrink:0;"></div><span class="state-chip ${st==='ON'?'on':'off'}">${st==='ON'?'🟢 ON':'🔴 OFF'}</span> ${ck.userName} · ${ck.time}</div>`;}).join(''):'<div class="ck-empty">아직 점검한 담당자가 없습니다</div>';
     const unchecked=members.filter(m=>!cks.find(c=>c.userId===m.id));
-    const unchHtml=unchecked.length&&done>0?`<div class="ck-undone">미확인: ${unchecked.map(m=>`<span style="color:${m.color}">${m.name}</span>`).join(', ')}</div>`:'';
-    let chkBtn=CU?.role==='superadmin'?'<button class="my-btn nop" disabled>최고관리자 체크 불가</button>':`<button class="my-btn ${cks.find(c=>c.userId===CU?.id)?'did':'can'}" onclick="toggleCheck('${item.id}')">${cks.find(c=>c.userId===CU?.id)?'✅ 내가 확인함 · '+cks.find(c=>c.userId===CU?.id).time:'☐ 내 점검 확인'}</button>`;
+    const unchHtml=unchecked.length&&done>0?`<div class="ck-undone">미점검: ${unchecked.map(m=>`<span style="color:${m.color}">${m.name}</span>`).join(', ')}</div>`:'';
+    const myCk=cks.find(c=>c.userId===CU?.id);const myState=myCk?.state;
+    let chkBtn=CU?.role==='superadmin'?'<div class="onoff-row"><button class="onoff-btn nop" disabled>🔒 관리자 점검 불가</button></div>':`<div class="onoff-row"><button class="onoff-btn ${myState==='ON'?'on-active':'on-idle'}" onclick="setOnOff('${item.id}','ON')">🟢 ON${myState==='ON'?' ✓':''}</button><button class="onoff-btn ${myState==='OFF'?'off-active':'off-idle'}" onclick="setOnOff('${item.id}','OFF')">🔴 OFF${myState==='OFF'?' ✓':''}</button></div>`;
     const delBtnHtml=delMode&&CU?.role==='superadmin'?`<button class="del-sm" onclick="event.stopPropagation();doDelById('${item.id}')">삭제</button>`:'';
-    return `<div class="ci ${cls} ${delMode?'dm':''}"><div class="ci-hd"><div class="ci-nm">${item.name}</div><div class="ci-meta"><div class="cnt ${cntCls}">${done}/${total||'?'}</div><div class="ci-num">#${i+1}</div>${delBtnHtml}</div></div><div class="ck-done">${checkedHtml}</div>${unchHtml}${chkBtn}<button class="go-btn" onclick="goMap('${item.id}')">🗺 도면에서 위치 보기</button></div>`;
+    return `<div class="ci ${cls} ${delMode?'dm':''}"><div class="ci-hd"><div class="ci-nm">${item.name}</div><div class="ci-meta"><div class="cnt ${cntCls}" title="${onCount}ON ${offCount}OFF">${done}/${total||'?'}${done>0?` <small style='font-size:9px;opacity:.7'>${onCount>0?'🟢'+onCount:''}${offCount>0?'🔴'+offCount:''}</small>`:''}</div><div class="ci-num">#${i+1}</div>${delBtnHtml}</div></div><div class="ck-done">${checkedHtml}</div>${unchHtml}${chkBtn}<button class="go-btn" onclick="goMap('${item.id}')">🗺 도면에서 위치 보기</button></div>`;
   }).join('');
 }
 function goMap(itemId){const item=(gdb().items[CF]||[]).find(i=>i.id===itemId);if(!item)return;switchTab('map');setTimeout(()=>{const vm=document.getElementById('v-map');ox=vm.clientWidth/2-item.x*sc;oy=vm.clientHeight/2-item.y*sc;applyT();render();},60);}
@@ -387,12 +405,34 @@ function closeSettings(){document.getElementById('s-set').classList.add('off');}
 function saveUrl(){const url=document.getElementById('url-input').value.trim(),db=gdb();db.scriptUrl=url;sdb(db);updateSyncBadge();toast(url?'✅ 구글 시트 연동 저장됨':'연동 해제됨');closeSettings();if(url)sheetsRefresh();}
 function updateSyncBadge(){const b=document.getElementById('sync-badge'),url=getScriptUrl();b.textContent=url?'SHEETS':'로컬';b.className='sync-badge '+(url?'on':'off');}
 async function testConn(){const url=document.getElementById('url-input').value.trim(),st=document.getElementById('sync-st');if(!url){toast('⚠️ URL을 먼저 입력하세요');return;}st.textContent='연결 테스트 중...';try{const r=await fetch(url,{method:'POST',body:JSON.stringify({action:'login',name:'__test__',password:'__test__'})});const d=await r.json();st.textContent='✅ 연결 성공';}catch(e){st.textContent='❌ 연결 실패: '+e.message;}}
-async function sheetsPost(params){const url=getScriptUrl();if(!url)return null;try{const r=await fetch(url,{method:'POST',body:JSON.stringify(params)});return await r.json();}catch(e){return null;}}
+async function sheetsPost(params){
+  const url=getScriptUrl();if(!url)return null;
+  try{
+    // POST with no-cors for cross-origin Apps Script
+    await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify(params)});
+    return {ok:true};
+  }catch(e){
+    try{// GET fallback
+      const p=new URLSearchParams({data:JSON.stringify(params)});
+      await fetch(url+'?'+p,{mode:'no-cors'});
+      return {ok:true};
+    }catch(e2){console.error('sheets:',e2);return {ok:false,error:e2.message};}
+  }
+}
 async function syncUser(user){await sheetsPost({action:'register',name:user.name,password:user.pw});}
 async function syncItem(item){await sheetsPost({action:'addItem',floor:item.floor,name:item.name,x:item.x,y:item.y,createdBy:item.createdBy});}
 async function syncDelItem(itemId){await sheetsPost({action:'deleteItem',itemId});}
-async function syncCheck(data){await sheetsPost({action:'check',...data});}
-async function syncUncheck(itemId,date){await sheetsPost({action:'uncheck',itemId,userId:CU.id,date});}
+async function syncCheck(data){
+  const payload={action:'check',floor:data.floor,floorName:data.floor===2?'2층 고형제':'3층 액상',itemId:data.itemId,itemName:data.itemName,userId:data.userId,userName:data.userName,date:data.date,time:data.time,state:data.state||'ON'};
+  const result=await sheetsPost(payload);
+  if(result?.ok)updateSyncStatus('✅ 시트 동기화 완료: '+data.time);
+  else if(result?.error)updateSyncStatus('⚠️ 시트 오류: '+result.error);
+}
+async function syncUncheck(itemId,date){
+  const result=await sheetsPost({action:'uncheck',itemId,userId:CU.id,date});
+  if(result?.ok)updateSyncStatus('↩ 취소 동기화');
+}
+function updateSyncStatus(msg){const el=document.getElementById('sync-st');if(el)el.textContent=msg;}
 async function sheetsRefresh(){
   const url=getScriptUrl();if(!url)return;
   try{const r=await fetch(url,{method:'POST',body:JSON.stringify({action:'getAllData',date:td(),floor:CF})});const data=await r.json();if(!data.ok)return;
