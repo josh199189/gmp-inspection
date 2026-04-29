@@ -527,7 +527,7 @@ async function sheetsPost(params){
   }
 }
 async function syncUser(user){await sheetsPost({action:'register',name:user.name,password:user.pw});}
-async async function syncItem(item){
+async function syncItem(item){
   const result=await sheetsPost({
     action:'addItem',
     floor:item.floor,
