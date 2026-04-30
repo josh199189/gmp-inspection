@@ -378,18 +378,42 @@ function toast(msg,dur=2200){const t=document.getElementById('toast');t.textCont
 function showScr(id){['s-auth','s-load','s-app','s-set'].forEach(s=>document.getElementById(s).classList.toggle('off',s!==id));}
 let authMode='login';
 function setAuthMode(m){authMode=m;document.getElementById('at-login').classList.toggle('on',m==='login');document.getElementById('at-reg').classList.toggle('on',m==='reg');document.getElementById('v-login').style.display=m==='login'?'block':'none';document.getElementById('v-reg').style.display=m==='reg'?'block':'none';document.getElementById('aerr').textContent='';}
-function doLogin(){
+async function doLogin(){
   const nameEl=document.getElementById('l-name'),pwEl=document.getElementById('l-pw'),err=document.getElementById('aerr');
-  // 자동완성 값도 강제로 읽기
   const name=(nameEl.value||nameEl.getAttribute('value')||'').trim();
   const pw=pwEl.value||pwEl.getAttribute('value')||'';
   if(!name||!pw){err.textContent='이름과 비밀번호를 입력하세요';return;}
-  if(name==='admin'){if(pw===ADM_PW){startApp({id:'admin',name:'최고관리자',role:'superadmin',color:'#7c3aed'});return;}err.textContent='비밀번호가 올바르지 않습니다';return;}
-  const db=gdb(),user=db.users.find(u=>u.name===name&&u.pw===pw);
-  if(!user){err.textContent='이름 또는 비밀번호가 올바르지 않습니다';return;}
-  startApp(user);
+  // admin은 로컬 고정 비밀번호
+  if(name==='admin'){
+    if(pw===ADM_PW){startApp({id:'admin',name:'최고관리자',role:'superadmin',color:'#7c3aed'});return;}
+    err.textContent='비밀번호가 올바르지 않습니다';return;
+  }
+  // 로컬 localStorage 먼저 확인 (빠른 응답)
+  const db=gdb();
+  const localUser=db.users.find(u=>u.name===name&&u.pw===pw);
+  if(localUser){startApp(localUser);return;}
+  // 로컬에 없으면 시트(Apps Script)에서 확인
+  const url=getScriptUrl();
+  if(!url){err.textContent='이름 또는 비밀번호가 올바르지 않습니다';return;}
+  err.textContent='로그인 확인 중...';
+  try{
+    const params=new URLSearchParams({data:JSON.stringify({action:'login',name,password:pw})});
+    const r=await fetch(url+'?'+params,{method:'GET'});
+    const d=await r.json();
+    if(d.ok&&d.user){
+      // 시트에서 확인됨 → 로컬에도 저장
+      const color=PALETTE[db.users.length%PALETTE.length];
+      const user={id:'u'+Date.now()+'_'+name,name,pw,role:'manager',color,joinDate:''};
+      if(!db.users.find(u=>u.name===name)){db.users.push(user);sdb(db);}
+      startApp(db.users.find(u=>u.name===name)||user);
+    } else {
+      err.textContent='이름 또는 비밀번호가 올바르지 않습니다';
+    }
+  }catch(e){
+    err.textContent='연결 오류. 잠시 후 다시 시도하세요.';
+  }
 }
-function doRegister(){
+async function doRegister(){
   const name=document.getElementById('r-name').value.trim(),pw=document.getElementById('r-pw').value,pw2=document.getElementById('r-pw2').value,err=document.getElementById('aerr');
   if(!name||!pw){err.textContent='이름과 비밀번호를 입력하세요';return;}
   if(name==='admin'){err.textContent='사용할 수 없는 이름입니다';return;}
@@ -397,13 +421,31 @@ function doRegister(){
   if(pw.length<4){err.textContent='비밀번호는 4자 이상이어야 합니다';return;}
   const db=gdb();
   if(db.users.find(u=>u.name===name)){err.textContent='이미 등록된 이름입니다';return;}
+  // 시트에도 중복 체크 + 등록
+  const url=getScriptUrl();
+  err.textContent='가입 처리 중...';
+  if(url){
+    try{
+      const params=new URLSearchParams({data:JSON.stringify({action:'register',name,password:pw})});
+      const r=await fetch(url+'?'+params,{method:'GET'});
+      const d=await r.json();
+      if(!d.ok){err.textContent=d.error||'가입 실패';return;}
+    }catch(e){/* 시트 오류 무시하고 로컬 저장 진행 */}
+  }
   const color=PALETTE[db.users.length%PALETTE.length];
   const user={id:'u'+Date.now(),name,pw,role:'manager',color,joinDate:td()};
   db.users.push(user);sdb(db);
-  syncUser(user);toast('✅ 가입 완료!');startApp(user);
+  toast('✅ 가입 완료!');startApp(user);
 }
 function startApp(user){
   CU=user;document.getElementById('aerr').textContent='';
+  // ★ 항상 최신 스크립트 URL로 강제 교체
+  const _db=gdb();
+  if(_db.scriptUrl!=='https://script.google.com/macros/s/AKfycbwj47J0b-pG9XDbvQVZjFJT2Oezk2b6ESaSYpPi2f4d8ylO2irORpcRapU9jXRkqvCtAw/exec'){_db.scriptUrl='https://script.google.com/macros/s/AKfycbwj47J0b-pG9XDbvQVZjFJT2Oezk2b6ESaSYpPi2f4d8ylO2irORpcRapU9jXRkqvCtAw/exec';sdb(_db);}
+  // 항상 최신 스크립트 URL 강제 적용
+  const db=gdb();
+  const LATEST_URL='https://script.google.com/macros/s/AKfycbwj47J0b-pG9XDbvQVZjFJT2Oezk2b6ESaSYpPi2f4d8ylO2irORpcRapU9jXRkqvCtAw/exec';
+  if(db.scriptUrl!==LATEST_URL){db.scriptUrl=LATEST_URL;sdb(db);}
   const av=document.getElementById('u-ava');av.textContent=CU.name[0];av.style.background=CU.color;
   document.getElementById('u-nm').textContent=CU.name;
   document.getElementById('u-rl').textContent=CU.role==='superadmin'?'최고관리자':'관리자';
@@ -880,12 +922,18 @@ function goMap(itemId){
 }
 async function sheetsPost(params){
   const url=getScriptUrl();if(!url)return null;
+  // GET 방식 우선 (응답 확인 가능)
   try{
-    await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify(params)});
-    return {ok:true};
+    const p=new URLSearchParams({data:JSON.stringify(params)});
+    const r=await fetch(url+'?'+p,{method:'GET'});
+    const d=await r.json();
+    return {ok:!!d.ok};
   }catch(e){
-    try{const p=new URLSearchParams({data:JSON.stringify(params)});await fetch(url+'?'+p,{mode:'no-cors'});return {ok:true};}
-    catch(e2){return {ok:false,error:e2.message};}
+    // GET 실패 시 no-cors POST fallback
+    try{
+      await fetch(url,{method:'POST',mode:'no-cors',body:JSON.stringify(params)});
+      return {ok:true};
+    }catch(e2){return {ok:false,error:e2.message};}
   }
 }
 async function syncCheck(data){
