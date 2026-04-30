@@ -581,8 +581,9 @@ function confirmCat(){
   if(!db.categories[CF])db.categories[CF]=[];
   const cat={id:'cat_'+Date.now(),name,floor:CF};
   db.categories[CF].push(cat);
-  sdb(db);closeCatModal();renderCatManager();updateCatSelect();
+  sdb(db);closeCatModal();renderCatManager();renderList();updateCatSelect();
   toast('📂 카테고리 추가: '+name);
+  syncCatsAndItems();
 }
 function delCat(catId){
   if(!confirm('카테고리를 삭제하면 해당 항목들이 미분류로 이동됩니다. 삭제할까요?'))return;
@@ -592,6 +593,7 @@ function delCat(catId){
   (db.items[CF]||[]).forEach(it=>{if(it.categoryId===catId){it.categoryId='';it.categoryName='';}});
   sdb(db);renderCatManager();renderList();updateCatSelect();
   toast('🗑 카테고리 삭제됨');
+  syncCatsAndItems();
 }
 function updateCatSelect(preselect){
   const sel=document.getElementById('m-cat');if(!sel)return;
@@ -963,6 +965,9 @@ async function testConn(){
 }
 function openSettings(){showScr('s-set');const db=gdb();document.getElementById('url-input').value=db.scriptUrl||'';}
 function closeSettings(){showScr('s-app');}
+async function syncItem(item){const payload={action:'addItem',floor:CF,categoryId:item.categoryId||'',categoryName:item.categoryName||'미분류',itemId:item.id,itemName:item.name,createdBy:CU?.name||'',createdAt:item.createdAt||td()};await sheetsPost(payload);await syncCatsAndItems();}
+async function syncDelItem(itemId,floor){await sheetsPost({action:'deleteItem',floor:floor||CF,itemId});await syncCatsAndItems();}
+async function syncCatsAndItems(){const db=gdb();const items=(db.items[CF]||[]).map(it=>({id:it.id,name:it.name,categoryId:it.categoryId||'',categoryName:it.categoryName||'미분류',createdBy:it.createdBy||'',createdAt:it.createdAt||''}));const cats=(db.categories[CF]||[]).map(c=>({id:c.id,name:c.name}));await sheetsPost({action:'syncItems',floor:CF,items,categories:cats});}
 
 
 // ─── 항목/카테고리 편집 함수 ─────────────────────────
@@ -1057,6 +1062,7 @@ function confirmRenameCat(catId){
   (db.items[CF]||[]).forEach(it=>{if(it.categoryId===catId)it.categoryName=newName;});
   sdb(db);closeEditModal();renderList();updateCatSelect();
   toast('✅ 카테고리 이름 변경: '+newName);
+  syncCatsAndItems();
 }
 
 function setMapPos(itemId){
