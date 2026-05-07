@@ -258,42 +258,55 @@ function showL(m){$('ldg-m').textContent=m||'로딩...';$('ldg').classList.add('
 function hideL(){$('ldg').classList.remove('show');}
 
 /* ================================================================
-   API 호출
+   API 호출 — 읽기: GET / 쓰기: POST
    ================================================================ */
-// ★ 단일 API 함수 — 모든 요청을 GET으로 (Google Apps Script 가장 안정적)
-async function api(action,data){
+// 읽기 (응답 필요) — GET
+async function apiGet(action,data){
   const url=getUrl();
   if(!url)throw new Error('URL 미설정');
   const payload=JSON.stringify({action,...data});
-  const fullUrl=url+'?data='+encodeURIComponent(payload);
+  const r=await fetch(url+'?data='+encodeURIComponent(payload),{redirect:'follow'});
+  const text=await r.text();
+  try{return JSON.parse(text);}catch(e){return{ok:false,error:'parse error'};}
+}
+
+// 쓰기 (응답 불필요) — POST로 보내고 확인은 다음 sync에서
+async function apiPost(action,data){
+  const url=getUrl();
+  if(!url)return;
+  const payload=JSON.stringify({action,...data});
+  // POST no-cors: 서버에 도달하지만 응답은 못 읽음
   try{
-    const r=await fetch(fullUrl,{redirect:'follow'});
-    const text=await r.text();
-    try{return JSON.parse(text);}catch(e){return{ok:true};}
-  }catch(e){
-    console.warn('api error:',action,e.message);
-    throw e;
+    await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:payload});
+  }catch(e1){
+    // POST 실패시 GET 폴백
+    try{await fetch(url+'?data='+encodeURIComponent(payload),{redirect:'follow'});}catch(e2){}
   }
 }
 
-/* --- 자동 동기화 (30초마다) --- */
+// 읽기+쓰기 겸용 (진단 등에서 응답 필요한 경우)
+async function api(action,data){return apiGet(action,data);}
+
+/* --- 자동 동기화 (10초마다) --- */
 let syncTimer=null;
 function startAutoSync(){
   stopAutoSync();
   syncTimer=setInterval(()=>{
     if(!CU||!getUrl())return;
     silentSync();
-  },30000); // 30초
+  },10000); // 10초
 }
 function stopAutoSync(){if(syncTimer){clearInterval(syncTimer);syncTimer=null;}}
 
 async function silentSync(){
   try{
     for(const f of [2,3]){
-      const j=await api('getData',{floor:f,date:today()});
-      D[f].items=j.items||[];
-      D[f].categories=j.categories||[];
-      D[f].checks=j.checks||[];
+      const j=await apiGet('getData',{floor:f,date:today()});
+      if(j.ok!==false){
+        D[f].items=j.items||[];
+        D[f].categories=j.categories||[];
+        D[f].checks=j.checks||[];
+      }
     }
     saveD();render();rList();uProg();
   }catch(e){console.warn('auto-sync:',e.message);}
@@ -638,14 +651,14 @@ async function doChk(itemId,state){
   hidePop();render();rList();uProg();saveD();
 
   // 서버 동기화
-  try{await api('check',{floor:CF,date,...chk});}catch(e){toast('동기화 실패: '+e.message);}
+  try{await apiPost('check',{floor:CF,date,...chk});}catch(e){toast('동기화 실패: '+e.message);}
 }
 
 async function doUnchk(itemId){
   if(!CU)return;
   D[CF].checks=D[CF].checks.filter(c=>c.itemId!==itemId);
   hidePop();render();rList();uProg();saveD();
-  try{await api('uncheck',{floor:CF,itemId,userId:CU.id,date:today()});}catch(e){toast('동기화 실패');}
+  try{await apiPost('uncheck',{floor:CF,itemId,userId:CU.id,date:today()});}catch(e){toast('동기화 실패');}
 }
 
 /* ================================================================
@@ -698,7 +711,7 @@ async function placeExisting(itemId){
 
   // 시트 동기화
   try{
-    await api('updateItemXY',{floor:CF,itemId:it.itemId,x:it.x,y:it.y});
+    await apiPost('updateItemXY',{floor:CF,itemId:it.itemId,x:it.x,y:it.y});
   }catch(e){toast('시트 저장 실패: '+e.message);}
 }
 
@@ -718,7 +731,7 @@ async function addItem(){
   closeM('m-item');$('mi-n').value='';cancelAdd();
   render();rList();uProg();saveD();toast('항목 추가됨');
 
-  try{await api('addItem',{floor:CF,...item});}catch(e){toast('시트 저장 실패');}
+  try{await apiPost('addItem',{floor:CF,...item});}catch(e){toast('시트 저장 실패');}
 }
 
 async function delItem(itemId){
@@ -726,7 +739,7 @@ async function delItem(itemId){
   D[CF].items=D[CF].items.filter(i=>i.itemId!==itemId);
   D[CF].checks=D[CF].checks.filter(c=>c.itemId!==itemId);
   hidePop();render();rList();uProg();saveD();toast('삭제됨');
-  try{await api('deleteItem',{floor:CF,itemId});}catch(e){toast('시트 삭제 실패');}
+  try{await apiPost('deleteItem',{floor:CF,itemId});}catch(e){toast('시트 삭제 실패');}
 }
 
 /* ================================================================
@@ -737,7 +750,7 @@ async function addCat(){
   const id='cat_'+Date.now();
   D[CF].categories.push({id,name,count:0});
   closeM('m-cat');$('mc-n').value='';rSet();saveD();toast('카테고리 추가됨');
-  try{await api('addCategory',{floor:CF,categoryId:id,categoryName:name});}catch(e){toast('저장 실패');}
+  try{await apiPost('addCategory',{floor:CF,categoryId:id,categoryName:name});}catch(e){toast('저장 실패');}
 }
 
 async function delCat(catId){
@@ -745,7 +758,7 @@ async function delCat(catId){
   D[CF].categories=D[CF].categories.filter(c=>c.id!==catId);
   D[CF].items.forEach(it=>{if(it.categoryId===catId){it.categoryId='';it.categoryName='미분류';}});
   rSet();rList();saveD();toast('삭제됨');
-  try{await api('deleteCategory',{floor:CF,categoryId:catId});}catch(e){}
+  try{await apiPost('deleteCategory',{floor:CF,categoryId:catId});}catch(e){}
 }
 
 async function renameCat(catId){
@@ -753,7 +766,7 @@ async function renameCat(catId){
   const c=D[CF].categories.find(c=>c.id===catId);if(c)c.name=name;
   D[CF].items.forEach(it=>{if(it.categoryId===catId)it.categoryName=name;});
   rSet();rList();saveD();toast('변경됨');
-  try{await api('renameCategory',{floor:CF,categoryId:catId,newName:name});}catch(e){}
+  try{await apiPost('renameCategory',{floor:CF,categoryId:catId,newName:name});}catch(e){}
 }
 
 /* ================================================================
@@ -830,7 +843,7 @@ async function runDiag(){
   w('[4/5] check 쓰기...');
   const tid='test_'+Date.now();
   try{
-    const j=await api('check',{floor:2,date:today(),categoryId:'diag',categoryName:'진단',itemId:tid,itemName:'진단',userId:'diag',userName:'진단',time:'test',state:'ON'});
+    const j=await apiGet('check',{floor:2,date:today(),categoryId:'diag',categoryName:'진단',itemId:tid,itemName:'진단',userId:'diag',userName:'진단',time:'test',state:'ON'});
     w('  결과: '+JSON.stringify(j));
   }catch(e){w('  ❌ '+e.message);}
   w('');
@@ -845,7 +858,7 @@ async function runDiag(){
       w('  → Code.gs v5.1 (ds함수 포함) 확인');
       w('  → Apps Script "새 버전" 재배포 확인');
     }
-    await api('uncheck',{floor:2,itemId:tid,userId:'diag',date:today()});
+    await apiGet('uncheck',{floor:2,itemId:tid,userId:'diag',date:today()});
   }catch(e){w('  ❌ '+e.message);}
   w('\n===== 진단 완료 =====');
 }
