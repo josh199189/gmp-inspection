@@ -234,8 +234,13 @@ let ms={s:1,ox:0,oy:0,drag:false,sx:0,sy:0,lx:0,ly:0};
 const $=id=>document.getElementById(id);
 
 /* --- 저장소: URL과 유저만 로컬 보관 --- */
-const DEFAULT_URL='https://script.google.com/macros/s/AKfycby4TLfEJeRuzWuk_6dnu4gah1Jc6a-zWgTrudeXMchGzjP6WhCEmFcqJbq5ffnVzs2tcA/exec';
-function getUrl(){return localStorage.getItem('gmp5_url')||DEFAULT_URL;}
+const DEFAULT_URL='https://script.google.com/macros/s/AKfycbyrGWTMknXCWPUWxsnqJr1Z1zrq8DTtAvtXKQTZ4_y2u_2bfdN6W78a-okgF7rF1WWZkA/exec';
+function getUrl(){
+  const saved=localStorage.getItem('gmp5_url');
+  // 저장된 URL이 없거나 옛날 URL이면 최신 기본값 사용
+  if(!saved||saved.includes('AKfycbwlLnv')||saved.includes('AKfycbwj47')||saved.includes('AKfycby4TLf'))return DEFAULT_URL;
+  return saved;
+}
 function setUrl(v){localStorage.setItem('gmp5_url',v);}
 function getUser(){try{return JSON.parse(localStorage.getItem('gmp5_user'));}catch(e){return null;}}
 function setUser(u){localStorage.setItem('gmp5_user',JSON.stringify(u));}
@@ -531,18 +536,22 @@ function zmR(){ms={s:1,ox:0,oy:0,drag:false,sx:0,sy:0,lx:0,ly:0};render();}
 
 /* --- 마커 팝업 --- */
 function showPop(it,cx,cy){
-  const pop=$('pop'),checks=D[CF].checks.filter(c=>c.itemId===it.itemId);
+  const pop=$('pop'),lastChk=D[CF].checks.find(c=>c.itemId===it.itemId);
   $('pop-t').textContent=it.itemName+(it.categoryName?' ('+it.categoryName+')':'');
 
-  let h='';checks.forEach(c=>{h+=`<div style="font-size:12px;color:${c.state==='ON'?'var(--ok)':'var(--off)'}">• ${c.userName}: ${c.state} ${c.time||''}</div>`;});
-  if(!h)h='<div style="font-size:12px;color:#94a3b8">점검 기록 없음</div>';
+  let h='';
+  if(lastChk){
+    const color=lastChk.state==='ON'?'var(--ok)':'var(--off)';
+    h=`<div style="font-size:14px;color:${color};font-weight:600">${lastChk.state} — ${lastChk.userName} (${lastChk.time||''})</div>`;
+  }else{
+    h='<div style="font-size:13px;color:#94a3b8">미점검</div>';
+  }
   $('pop-c').innerHTML=h;
 
   let b='';
   if(CU?.role==='user'){
     b=`<button style="background:var(--ok);color:#fff" onclick="doChk('${it.itemId}','ON')">🟢 ON</button>
        <button style="background:var(--off);color:#fff" onclick="doChk('${it.itemId}','OFF')">🔴 OFF</button>`;
-    if(checks.some(c=>c.userId===CU.id))b+=`<button style="background:#f1f5f9;color:#64748b" onclick="doUnchk('${it.itemId}')">취소</button>`;
   }
   if(CU?.role==='admin')b+=`<button style="background:#f1f5f9;color:var(--off)" onclick="delItem('${it.itemId}')">🗑</button>`;
   $('pop-b').innerHTML=b;
@@ -577,30 +586,28 @@ function rList(){
       <span class="a">▶</span>${gr.name}<span class="n">${gr.items.length}개</span></div><div class="cbod op">`;
 
     gr.items.forEach(it=>{
-      const myChk=checks.find(c=>c.itemId===it.itemId&&c.userId===CU?.id);
-      const allChk=checks.filter(c=>c.itemId===it.itemId);
+      const lastChk=checks.find(c=>c.itemId===it.itemId);
 
       html+=`<div class="irow"><div class="nm">${it.itemName}</div><div class="dots">`;
 
-      // 내 체크 버튼 (일반 사용자)
-      if(CU?.role==='user'){
-        if(!myChk){
+      if(!lastChk){
+        // 미점검
+        if(CU?.role==='user'){
           html+=`<div class="dot dnone" onclick="doChk('${it.itemId}','ON')">―</div>`;
         }else{
-          const cls=myChk.state==='ON'?'don':'doff';
-          const next=myChk.state==='ON'?'OFF':'ON';
-          html+=`<div class="dot ${cls}" onclick="doChk('${it.itemId}','${next}')">${myChk.state==='ON'?'O':'X'}</div>`;
+          html+=`<span style="font-size:12px;color:#94a3b8">미점검</span>`;
         }
+      }else{
+        // 마지막 상태 표시
+        const cls=lastChk.state==='ON'?'don':'doff';
+        const next=lastChk.state==='ON'?'OFF':'ON';
+        if(CU?.role==='user'){
+          html+=`<div class="dot ${cls}" onclick="doChk('${it.itemId}','${next}')">${lastChk.state==='ON'?'O':'X'}</div>`;
+        }else{
+          html+=`<div class="dot ${cls}" style="cursor:default">${lastChk.state==='ON'?'O':'X'}</div>`;
+        }
+        html+=`<span style="font-size:11px;color:#64748b;margin-left:4px">${lastChk.userName||''}</span>`;
       }
-
-      // 전체 체크 현황
-      allChk.forEach(c=>{
-        if(c.userId===CU?.id&&CU?.role==='user')return;
-        const cls=c.state==='ON'?'don':'doff';
-        html+=`<div class="dot ${cls}" style="width:24px;height:24px;font-size:9px" title="${c.userName}: ${c.state}">${(c.userName||'?')[0]}</div>`;
-      });
-
-      if(!allChk.length&&isAdm)html+=`<span style="font-size:12px;color:#94a3b8">미점검</span>`;
 
       html+=`</div>`;
       if(isAdm)html+=`<div class="iadm"><button onclick="delItem('${it.itemId}')">🗑</button></div>`;
@@ -625,7 +632,7 @@ async function doChk(itemId,state){
   const time=timeNow(),date=today();
 
   // 로컬 즉시 반영
-  const existing=D[CF].checks.findIndex(c=>c.itemId===itemId&&c.userId===CU.id);
+  const existing=D[CF].checks.findIndex(c=>c.itemId===itemId);
   const chk={categoryId:it.categoryId,categoryName:it.categoryName,itemId,itemName:it.itemName,userId:CU.id,userName:CU.name,time,state};
   if(existing>=0)D[CF].checks[existing]=chk;else D[CF].checks.push(chk);
   hidePop();render();rList();uProg();saveD();
@@ -636,7 +643,7 @@ async function doChk(itemId,state){
 
 async function doUnchk(itemId){
   if(!CU)return;
-  D[CF].checks=D[CF].checks.filter(c=>!(c.itemId===itemId&&c.userId===CU.id));
+  D[CF].checks=D[CF].checks.filter(c=>c.itemId!==itemId);
   hidePop();render();rList();uProg();saveD();
   try{await api('uncheck',{floor:CF,itemId,userId:CU.id,date:today()});}catch(e){toast('동기화 실패');}
 }
