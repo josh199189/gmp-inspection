@@ -227,7 +227,8 @@ let ms={s:1,ox:0,oy:0,drag:false,sx:0,sy:0,lx:0,ly:0};
 const $=id=>document.getElementById(id);
 
 /* --- 저장소: URL과 유저만 로컬 보관 --- */
-function getUrl(){return localStorage.getItem('gmp5_url')||'';}
+const DEFAULT_URL='https://script.google.com/macros/s/AKfycbwlLnvJhMIAFY3XOfaNhPhaBw1TsARczdetJBjpD9iKhNjZi359RbGYLHP0fOaL5B9rNg/exec';
+function getUrl(){return localStorage.getItem('gmp5_url')||DEFAULT_URL;}
 function setUrl(v){localStorage.setItem('gmp5_url',v);}
 function getUser(){try{return JSON.parse(localStorage.getItem('gmp5_user'));}catch(e){return null;}}
 function setUser(u){localStorage.setItem('gmp5_user',JSON.stringify(u));}
@@ -270,7 +271,6 @@ async function login(){
   }
 
   const url=getUrl();
-  if(!url){$('li-e').textContent='설정에서 Google Sheets URL을 먼저 입력하세요.';return;}
   try{
     showL('로그인 중...');
     const j=await api('login',{name,password:pw});
