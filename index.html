@@ -441,54 +441,56 @@ async function render(){
   else{ctx.fillStyle='#94a3b8';ctx.font='bold 20px sans-serif';ctx.textAlign='center';ctx.fillText(FN[CF]+' 도면',cw/2,ih/2);}
 
   // 마커
-  const items=D[CF].items, checks=D[CF].checks, r=Math.max(10,cw/55);
+  const items=D[CF].items, checks=D[CF].checks, r=Math.max(12,cw/45);
   items.forEach(it=>{
     if(it.x==null||it.y==null)return;
     const {x,y}=pct2px(it.x,it.y);
-    const hasOn=checks.some(c=>c.itemId===it.itemId&&c.state==='ON');
-    const hasOff=checks.some(c=>c.itemId===it.itemId&&c.state==='OFF');
+    const chk=checks.find(c=>c.itemId===it.itemId);
+    const st=chk?chk.state:null; // 'ON', 'OFF', or null
 
-    // 핀
-    ctx.beginPath();ctx.moveTo(x-5,y+r-2);ctx.lineTo(x+5,y+r-2);ctx.lineTo(x,y+r+8);ctx.closePath();
-    ctx.fillStyle=hasOn?'#16a34a':hasOff?'#dc2626':'#6b7280';ctx.fill();
+    // 색상 결정
+    const cMain=st==='ON'?'#22c55e':st==='OFF'?'#ef4444':'#94a3b8';
+    const cDark=st==='ON'?'#16a34a':st==='OFF'?'#dc2626':'#6b7280';
 
-    // 원
+    // 핀 꼬리
+    ctx.beginPath();ctx.moveTo(x-6,y+r-2);ctx.lineTo(x+6,y+r-2);ctx.lineTo(x,y+r+10);ctx.closePath();
+    ctx.fillStyle=cDark;ctx.fill();
+
+    // 원 (큰 원)
     ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);
-    ctx.fillStyle=hasOn?'#22c55e':hasOff?'#ef4444':'#94a3b8';ctx.fill();
-    ctx.strokeStyle='#fff';ctx.lineWidth=2.5;ctx.stroke();
+    ctx.fillStyle=cMain;ctx.fill();
+    ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.stroke();
 
-    // 텍스트
-    ctx.fillStyle='#fff';ctx.font=`bold ${r*.7|0}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(checks.filter(c=>c.itemId===it.itemId).length||'•',x,y);
+    // 원 안 텍스트
+    ctx.fillStyle='#fff';ctx.font=`bold ${r*.75|0}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(st==='ON'?'O':st==='OFF'?'X':'•',x,y);
 
-    // 라벨: 항목명 + 최근 점검자
+    // 라벨: 항목명 + 점검자
     const nm=it.itemName||'';
-    const itemChecks=checks.filter(c=>c.itemId===it.itemId);
-    const lastChk=itemChecks.length>0?itemChecks[itemChecks.length-1]:null;
-    const checkerName=lastChk?`${lastChk.userName} ${lastChk.state}`:'';
+    const who=chk?`${chk.userName||''} ${chk.state}`:'';
 
-    const fs1=Math.max(9,r*.65|0), fs2=Math.max(8,r*.55|0);
+    const fs1=Math.max(10,r*.6|0), fs2=Math.max(9,r*.5|0);
     ctx.font=`bold ${fs1}px sans-serif`;ctx.textBaseline='top';ctx.textAlign='center';
     const tw1=ctx.measureText(nm).width;
     ctx.font=`${fs2}px sans-serif`;
-    const tw2=checkerName?ctx.measureText(checkerName).width:0;
-    const tw=Math.max(tw1,tw2)+12;
-    const lh=checkerName?32:16;
+    const tw2=who?ctx.measureText(who).width:0;
+    const tw=Math.max(tw1,tw2)+14;
+    const lh=who?34:18;
 
-    // 라벨 배경
-    const lx=x-tw/2,ly=y+r+10;
-    ctx.fillStyle='rgba(0,0,0,.75)';
-    ctx.beginPath();ctx.moveTo(lx+3,ly);ctx.lineTo(lx+tw-3,ly);ctx.arcTo(lx+tw,ly,lx+tw,ly+3,3);ctx.lineTo(lx+tw,ly+lh-3);ctx.arcTo(lx+tw,ly+lh,lx+tw-3,ly+lh,3);ctx.lineTo(lx+3,ly+lh);ctx.arcTo(lx,ly+lh,lx,ly+lh-3,3);ctx.lineTo(lx,ly+3);ctx.arcTo(lx,ly,lx+3,ly,3);ctx.closePath();ctx.fill();
+    // 라벨 배경 (상태에 따른 색상)
+    const lx=x-tw/2,ly=y+r+12;
+    ctx.fillStyle=st==='ON'?'rgba(22,163,106,.85)':st==='OFF'?'rgba(220,38,38,.85)':'rgba(0,0,0,.7)';
+    ctx.beginPath();ctx.moveTo(lx+4,ly);ctx.lineTo(lx+tw-4,ly);ctx.arcTo(lx+tw,ly,lx+tw,ly+4,4);ctx.lineTo(lx+tw,ly+lh-4);ctx.arcTo(lx+tw,ly+lh,lx+tw-4,ly+lh,4);ctx.lineTo(lx+4,ly+lh);ctx.arcTo(lx,ly+lh,lx,ly+lh-4,4);ctx.lineTo(lx,ly+4);ctx.arcTo(lx,ly,lx+4,ly,4);ctx.closePath();ctx.fill();
 
     // 항목명
     ctx.fillStyle='#fff';ctx.font=`bold ${fs1}px sans-serif`;
-    ctx.fillText(nm,x,y+r+12);
+    ctx.fillText(nm,x,y+r+14);
 
-    // 최근 점검자
-    if(checkerName){
-      ctx.fillStyle=lastChk.state==='ON'?'#86efac':'#fca5a5';
+    // 점검자
+    if(who){
+      ctx.fillStyle='rgba(255,255,255,.9)';
       ctx.font=`${fs2}px sans-serif`;
-      ctx.fillText(checkerName,x,y+r+26);
+      ctx.fillText(who,x,y+r+28);
     }
   });
 
@@ -648,7 +650,7 @@ async function doChk(itemId,state){
   const existing=D[CF].checks.findIndex(c=>c.itemId===itemId);
   const chk={categoryId:it.categoryId,categoryName:it.categoryName,itemId,itemName:it.itemName,userId:CU.id,userName:CU.name,time,state};
   if(existing>=0)D[CF].checks[existing]=chk;else D[CF].checks.push(chk);
-  hidePop();render();rList();uProg();saveD();
+  hidePop();await render();rList();uProg();saveD();
 
   // 서버 동기화
   try{await apiPost('check',{floor:CF,date,...chk});}catch(e){toast('동기화 실패: '+e.message);}
@@ -657,7 +659,7 @@ async function doChk(itemId,state){
 async function doUnchk(itemId){
   if(!CU)return;
   D[CF].checks=D[CF].checks.filter(c=>c.itemId!==itemId);
-  hidePop();render();rList();uProg();saveD();
+  hidePop();await render();rList();uProg();saveD();
   try{await apiPost('uncheck',{floor:CF,itemId,userId:CU.id,date:today()});}catch(e){toast('동기화 실패');}
 }
 
