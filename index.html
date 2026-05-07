@@ -252,39 +252,19 @@ function hideL(){$('ldg').classList.remove('show');}
 /* ================================================================
    API 호출
    ================================================================ */
-// 읽기 전용 (응답 필요) — GET
-async function apiRead(action,data){
+// ★ 단일 API 함수 — 모든 요청을 GET으로 (Google Apps Script 가장 안정적)
+async function api(action,data){
   const url=getUrl();
   if(!url)throw new Error('URL 미설정');
   const payload=JSON.stringify({action,...data});
-  const r=await fetch(url+'?data='+encodeURIComponent(payload));
-  const text=await r.text();
-  try{const j=JSON.parse(text);if(!j.ok)throw new Error(j.error||'서버 오류');return j;}
-  catch(e){
-    // HTML 리다이렉트 응답이면 redirect follow 시도
-    if(text.includes('<!DOCTYPE')||text.includes('<html')){
-      const r2=await fetch(url+'?data='+encodeURIComponent(payload),{redirect:'follow'});
-      const t2=await r2.text();
-      const j2=JSON.parse(t2);
-      if(!j2.ok)throw new Error(j2.error||'서버 오류');
-      return j2;
-    }
-    throw e;
-  }
-}
-
-// 쓰기 전용 (응답 불필요) — POST no-cors + GET 백업
-async function apiWrite(action,data){
-  const url=getUrl();
-  if(!url)return;
-  const payload=JSON.stringify({action,...data});
-
-  // 방법1: POST (no-cors, 응답 못 읽지만 서버에 도달)
+  const fullUrl=url+'?data='+encodeURIComponent(payload);
   try{
-    await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:payload});
-  }catch(e1){
-    // 방법2: GET 폴백
-    try{await fetch(url+'?data='+encodeURIComponent(payload));}catch(e2){}
+    const r=await fetch(fullUrl,{redirect:'follow'});
+    const text=await r.text();
+    try{return JSON.parse(text);}catch(e){return{ok:true};}
+  }catch(e){
+    console.warn('api error:',action,e.message);
+    throw e;
   }
 }
 
@@ -302,7 +282,7 @@ function stopAutoSync(){if(syncTimer){clearInterval(syncTimer);syncTimer=null;}}
 async function silentSync(){
   try{
     for(const f of [2,3]){
-      const j=await apiRead('getData',{floor:f,date:today()});
+      const j=await api('getData',{floor:f,date:today()});
       D[f].items=j.items||[];
       D[f].categories=j.categories||[];
       D[f].checks=j.checks||[];
@@ -326,7 +306,7 @@ async function login(){
   const url=getUrl();
   try{
     showL('로그인 중...');
-    const j=await apiRead('login',{name,password:pw});
+    const j=await api('login',{name,password:pw});
     hideL();
     CU={id:'u_'+name,name,role:'user'};setUser(CU);
     $('li-e').textContent='';go('pg-main');sync();
@@ -338,7 +318,7 @@ async function register(){
   if(!name||!pw){$('reg-e').textContent='입력을 확인하세요.';return;}
   if(pw!==pw2){$('reg-e').textContent='비밀번호 불일치';return;}
   try{
-    showL('가입 중...');await apiRead('register',{name,password:pw});hideL();
+    showL('가입 중...');await api('register',{name,password:pw});hideL();
     toast('가입 완료! 로그인하세요.');$('reg-f').style.display='none';$('reg-e').textContent='';
   }catch(e){hideL();$('reg-e').textContent=e.message;}
 }
@@ -354,7 +334,7 @@ async function sync(){
   showL('데이터 동기화 중...');
   try{
     for(const f of [2,3]){
-      const j=await apiRead('getData',{floor:f,date:today()});
+      const j=await api('getData',{floor:f,date:today()});
       D[f].items=j.items||[];
       D[f].categories=j.categories||[];
       D[f].checks=j.checks||[];
@@ -648,14 +628,14 @@ async function doChk(itemId,state){
   hidePop();render();rList();uProg();saveD();
 
   // 서버 동기화
-  try{await apiWrite('check',{floor:CF,date,...chk});}catch(e){toast('동기화 실패: '+e.message);}
+  try{await api('check',{floor:CF,date,...chk});}catch(e){toast('동기화 실패: '+e.message);}
 }
 
 async function doUnchk(itemId){
   if(!CU)return;
   D[CF].checks=D[CF].checks.filter(c=>!(c.itemId===itemId&&c.userId===CU.id));
   hidePop();render();rList();uProg();saveD();
-  try{await apiWrite('uncheck',{floor:CF,itemId,userId:CU.id,date:today()});}catch(e){toast('동기화 실패');}
+  try{await api('uncheck',{floor:CF,itemId,userId:CU.id,date:today()});}catch(e){toast('동기화 실패');}
 }
 
 /* ================================================================
@@ -708,7 +688,7 @@ async function placeExisting(itemId){
 
   // 시트 동기화
   try{
-    await apiWrite('updateItemXY',{floor:CF,itemId:it.itemId,x:it.x,y:it.y});
+    await api('updateItemXY',{floor:CF,itemId:it.itemId,x:it.x,y:it.y});
   }catch(e){toast('시트 저장 실패: '+e.message);}
 }
 
@@ -728,7 +708,7 @@ async function addItem(){
   closeM('m-item');$('mi-n').value='';cancelAdd();
   render();rList();uProg();saveD();toast('항목 추가됨');
 
-  try{await apiWrite('addItem',{floor:CF,...item});}catch(e){toast('시트 저장 실패');}
+  try{await api('addItem',{floor:CF,...item});}catch(e){toast('시트 저장 실패');}
 }
 
 async function delItem(itemId){
@@ -736,7 +716,7 @@ async function delItem(itemId){
   D[CF].items=D[CF].items.filter(i=>i.itemId!==itemId);
   D[CF].checks=D[CF].checks.filter(c=>c.itemId!==itemId);
   hidePop();render();rList();uProg();saveD();toast('삭제됨');
-  try{await apiWrite('deleteItem',{floor:CF,itemId});}catch(e){toast('시트 삭제 실패');}
+  try{await api('deleteItem',{floor:CF,itemId});}catch(e){toast('시트 삭제 실패');}
 }
 
 /* ================================================================
@@ -747,7 +727,7 @@ async function addCat(){
   const id='cat_'+Date.now();
   D[CF].categories.push({id,name,count:0});
   closeM('m-cat');$('mc-n').value='';rSet();saveD();toast('카테고리 추가됨');
-  try{await apiWrite('addCategory',{floor:CF,categoryId:id,categoryName:name});}catch(e){toast('저장 실패');}
+  try{await api('addCategory',{floor:CF,categoryId:id,categoryName:name});}catch(e){toast('저장 실패');}
 }
 
 async function delCat(catId){
@@ -755,7 +735,7 @@ async function delCat(catId){
   D[CF].categories=D[CF].categories.filter(c=>c.id!==catId);
   D[CF].items.forEach(it=>{if(it.categoryId===catId){it.categoryId='';it.categoryName='미분류';}});
   rSet();rList();saveD();toast('삭제됨');
-  try{await apiWrite('deleteCategory',{floor:CF,categoryId:catId});}catch(e){}
+  try{await api('deleteCategory',{floor:CF,categoryId:catId});}catch(e){}
 }
 
 async function renameCat(catId){
@@ -763,7 +743,7 @@ async function renameCat(catId){
   const c=D[CF].categories.find(c=>c.id===catId);if(c)c.name=name;
   D[CF].items.forEach(it=>{if(it.categoryId===catId)it.categoryName=name;});
   rSet();rList();saveD();toast('변경됨');
-  try{await apiWrite('renameCategory',{floor:CF,categoryId:catId,newName:name});}catch(e){}
+  try{await api('renameCategory',{floor:CF,categoryId:catId,newName:name});}catch(e){}
 }
 
 /* ================================================================
@@ -791,7 +771,7 @@ function rSet(){
 
 function saveUrl(){setUrl($('s-url').value.trim());$('s-msg').textContent='저장됨';$('s-msg').style.color='var(--ok)';toast('URL 저장됨');}
 async function testUrl(){
-  try{showL('테스트 중...');await apiRead('ping',{});hideL();$('s-msg').textContent='✅ 연결 성공!';$('s-msg').style.color='var(--ok)';}
+  try{showL('테스트 중...');await api('ping',{});hideL();$('s-msg').textContent='✅ 연결 성공!';$('s-msg').style.color='var(--ok)';}
   catch(e){hideL();$('s-msg').textContent='❌ '+e.message;$('s-msg').style.color='var(--off)';}
 }
 
