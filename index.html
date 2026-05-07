@@ -256,10 +256,40 @@ async function api(action,data){
   const url=getUrl();
   if(!url)throw new Error('URL 미설정');
   const payload=JSON.stringify({action,...data});
-  const r=await fetch(url,{method:'POST',headers:{'Content-Type':'text/plain'},body:payload});
-  const j=await r.json();
-  if(!j.ok)throw new Error(j.error||'서버 오류');
-  return j;
+  // Google Apps Script는 POST 리다이렉트 시 body가 유실됨 → GET 사용
+  const r=await fetch(url+'?data='+encodeURIComponent(payload),{method:'GET',redirect:'follow'});
+  const text=await r.text();
+  try{
+    const j=JSON.parse(text);
+    if(!j.ok)throw new Error(j.error||'서버 오류');
+    return j;
+  }catch(e){
+    console.error('API parse error:',text.substring(0,200));
+    throw new Error('서버 응답 오류');
+  }
+}
+
+/* --- 자동 동기화 (30초마다) --- */
+let syncTimer=null;
+function startAutoSync(){
+  stopAutoSync();
+  syncTimer=setInterval(()=>{
+    if(!CU||!getUrl())return;
+    silentSync();
+  },30000); // 30초
+}
+function stopAutoSync(){if(syncTimer){clearInterval(syncTimer);syncTimer=null;}}
+
+async function silentSync(){
+  try{
+    for(const f of [2,3]){
+      const j=await api('getData',{floor:f,date:today()});
+      D[f].items=j.items||[];
+      D[f].categories=j.categories||[];
+      D[f].checks=j.checks||[];
+    }
+    saveD();render();rList();uProg();
+  }catch(e){console.warn('auto-sync:',e.message);}
 }
 
 /* ================================================================
@@ -294,7 +324,7 @@ async function register(){
   }catch(e){hideL();$('reg-e').textContent=e.message;}
 }
 
-function logout(){CU=null;localStorage.removeItem('gmp5_user');go('pg-login');}
+function logout(){CU=null;localStorage.removeItem('gmp5_user');stopAutoSync();go('pg-login');}
 
 /* ================================================================
    데이터 동기화 — 2F + 3F 모두
@@ -311,7 +341,7 @@ async function sync(){
       D[f].checks=j.checks||[];
       if(f===2)members=j.members||[];
     }
-    hideL();render();rList();uProg();saveD();toast('동기화 완료!');
+    hideL();render();rList();uProg();saveD();startAutoSync();toast('동기화 완료!');
   }catch(e){hideL();toast('동기화 실패: '+e.message);}
 }
 
@@ -753,7 +783,7 @@ window.addEventListener('DOMContentLoaded',()=>{
   setupMap();
   CU=getUser();
   loadD(); // 캐시된 데이터 복원
-  if(CU){go('pg-main');if(getUrl())sync();}
+  if(CU){go('pg-main');if(getUrl()){sync();}else{startAutoSync();}}
   window.addEventListener('resize',()=>{if($('pg-main').classList.contains('on'))render();});
 });
 </script>
