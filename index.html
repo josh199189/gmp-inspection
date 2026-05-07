@@ -221,6 +221,10 @@ const COLORS=['#3b82f6','#22c55e','#f59e0b','#ef4444','#8b5cf6','#ec4899','#14b8
 let CF=2, CU=null, addMode=false, addXY=null;
 let D={2:{items:[],categories:[],checks:[]},3:{items:[],categories:[],checks:[]}};
 let members=[];
+
+// --- 데이터 로컬 캐시 (페이지 닫아도 유지) ---
+function saveD(){try{localStorage.setItem('gmp5_data',JSON.stringify(D));}catch(e){}}
+function loadD(){try{const s=localStorage.getItem('gmp5_data');if(s){D=JSON.parse(s);}}catch(e){}}
 let imgCache={}, imgW=1, imgH=1;
 let ms={s:1,ox:0,oy:0,drag:false,sx:0,sy:0,lx:0,ly:0};
 
@@ -307,7 +311,7 @@ async function sync(){
       D[f].checks=j.checks||[];
       if(f===2)members=j.members||[];
     }
-    hideL();render();rList();uProg();toast('동기화 완료!');
+    hideL();render();rList();uProg();saveD();toast('동기화 완료!');
   }catch(e){hideL();toast('동기화 실패: '+e.message);}
 }
 
@@ -592,7 +596,7 @@ async function doChk(itemId,state){
   const existing=D[CF].checks.findIndex(c=>c.itemId===itemId&&c.userId===CU.id);
   const chk={categoryId:it.categoryId,categoryName:it.categoryName,itemId,itemName:it.itemName,userId:CU.id,userName:CU.name,time,state};
   if(existing>=0)D[CF].checks[existing]=chk;else D[CF].checks.push(chk);
-  hidePop();render();rList();uProg();
+  hidePop();render();rList();uProg();saveD();
 
   // 서버 동기화
   try{await api('check',{floor:CF,date,...chk});}catch(e){toast('동기화 실패: '+e.message);}
@@ -601,7 +605,7 @@ async function doChk(itemId,state){
 async function doUnchk(itemId){
   if(!CU)return;
   D[CF].checks=D[CF].checks.filter(c=>!(c.itemId===itemId&&c.userId===CU.id));
-  hidePop();render();rList();uProg();
+  hidePop();render();rList();uProg();saveD();
   try{await api('uncheck',{floor:CF,itemId,userId:CU.id,date:today()});}catch(e){toast('동기화 실패');}
 }
 
@@ -650,7 +654,7 @@ async function placeExisting(itemId){
   closeM('m-pick');
   addMode=false;addXY=null;
   $('fab').textContent='📍';$('fab').style.background='var(--pri)';
-  render();rList();
+  render();rList();saveD();
   toast(`"${it.itemName}" 배치 완료`);
 
   // 시트 동기화
@@ -673,7 +677,7 @@ async function addItem(){
 
   D[CF].items.push(item);
   closeM('m-item');$('mi-n').value='';cancelAdd();
-  render();rList();uProg();toast('항목 추가됨');
+  render();rList();uProg();saveD();toast('항목 추가됨');
 
   try{await api('addItem',{floor:CF,...item});}catch(e){toast('시트 저장 실패');}
 }
@@ -682,7 +686,7 @@ async function delItem(itemId){
   if(!confirm('삭제하시겠습니까?'))return;
   D[CF].items=D[CF].items.filter(i=>i.itemId!==itemId);
   D[CF].checks=D[CF].checks.filter(c=>c.itemId!==itemId);
-  hidePop();render();rList();uProg();toast('삭제됨');
+  hidePop();render();rList();uProg();saveD();toast('삭제됨');
   try{await api('deleteItem',{floor:CF,itemId});}catch(e){toast('시트 삭제 실패');}
 }
 
@@ -693,7 +697,7 @@ async function addCat(){
   const name=$('mc-n').value.trim();if(!name){toast('이름 입력');return;}
   const id='cat_'+Date.now();
   D[CF].categories.push({id,name,count:0});
-  closeM('m-cat');$('mc-n').value='';rSet();toast('카테고리 추가됨');
+  closeM('m-cat');$('mc-n').value='';rSet();saveD();toast('카테고리 추가됨');
   try{await api('addCategory',{floor:CF,categoryId:id,categoryName:name});}catch(e){toast('저장 실패');}
 }
 
@@ -701,7 +705,7 @@ async function delCat(catId){
   if(!confirm('카테고리를 삭제하시겠습니까?'))return;
   D[CF].categories=D[CF].categories.filter(c=>c.id!==catId);
   D[CF].items.forEach(it=>{if(it.categoryId===catId){it.categoryId='';it.categoryName='미분류';}});
-  rSet();rList();toast('삭제됨');
+  rSet();rList();saveD();toast('삭제됨');
   try{await api('deleteCategory',{floor:CF,categoryId:catId});}catch(e){}
 }
 
@@ -709,7 +713,7 @@ async function renameCat(catId){
   const name=prompt('새 이름:');if(!name)return;
   const c=D[CF].categories.find(c=>c.id===catId);if(c)c.name=name;
   D[CF].items.forEach(it=>{if(it.categoryId===catId)it.categoryName=name;});
-  rSet();rList();toast('변경됨');
+  rSet();rList();saveD();toast('변경됨');
   try{await api('renameCategory',{floor:CF,categoryId:catId,newName:name});}catch(e){}
 }
 
@@ -748,6 +752,7 @@ async function testUrl(){
 window.addEventListener('DOMContentLoaded',()=>{
   setupMap();
   CU=getUser();
+  loadD(); // 캐시된 데이터 복원
   if(CU){go('pg-main');if(getUrl())sync();}
   window.addEventListener('resize',()=>{if($('pg-main').classList.contains('on'))render();});
 });
