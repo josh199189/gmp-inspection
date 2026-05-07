@@ -231,7 +231,7 @@ let ms={s:1,ox:0,oy:0,drag:false,sx:0,sy:0,lx:0,ly:0};
 const $=id=>document.getElementById(id);
 
 /* --- 저장소: URL과 유저만 로컬 보관 --- */
-const DEFAULT_URL='https://script.google.com/macros/s/AKfycbwlLnvJhMIAFY3XOfaNhPhaBw1TsARczdetJBjpD9iKhNjZi359RbGYLHP0fOaL5B9rNg/exec';
+const DEFAULT_URL='https://script.google.com/macros/s/AKfycby4TLfEJeRuzWuk_6dnu4gah1Jc6a-zWgTrudeXMchGzjP6WhCEmFcqJbq5ffnVzs2tcA/exec';
 function getUrl(){return localStorage.getItem('gmp5_url')||DEFAULT_URL;}
 function setUrl(v){localStorage.setItem('gmp5_url',v);}
 function getUser(){try{return JSON.parse(localStorage.getItem('gmp5_user'));}catch(e){return null;}}
