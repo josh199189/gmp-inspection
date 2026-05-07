@@ -174,6 +174,9 @@ button{font-family:inherit}
       <input id="s-url" placeholder="Apps Script URL">
       <div class="sbtn"><button class="btn btn1" onclick="saveUrl()">저장</button><button class="btn btn2" onclick="testUrl()">테스트</button></div>
       <div class="emsg" id="s-msg" style="margin-top:6px"></div></div>
+    <div class="scard"><h3>🔧 연결 진단</h3>
+      <div class="sbtn"><button class="btn btn1" onclick="runDiag()">전체 진단 실행</button></div>
+      <div id="diag-log" style="margin-top:10px;font-size:12px;font-family:monospace;white-space:pre-wrap;background:#f1f5f9;padding:12px;border-radius:8px;max-height:400px;overflow-y:auto;display:none"></div></div>
     <div class="scard" id="s-cat" style="display:none"><h3>📂 카테고리 관리 (<span id="s-cat-floor"></span>)</h3>
       <div id="s-cat-list"></div>
       <div class="sbtn" style="margin-top:10px"><button class="btn btn1" onclick="openM('m-cat')">＋ 추가</button></div></div>
@@ -773,6 +776,71 @@ function saveUrl(){setUrl($('s-url').value.trim());$('s-msg').textContent='저�
 async function testUrl(){
   try{showL('테스트 중...');await api('ping',{});hideL();$('s-msg').textContent='✅ 연결 성공!';$('s-msg').style.color='var(--ok)';}
   catch(e){hideL();$('s-msg').textContent='❌ '+e.message;$('s-msg').style.color='var(--off)';}
+}
+
+async function runDiag(){
+  const log=$('diag-log');log.style.display='block';log.textContent='';
+  const url=getUrl();
+  function w(m){log.textContent+=m+'\n';log.scrollTop=log.scrollHeight;}
+
+  w('===== GMP 연결 진단 =====');
+  w('URL: '+url);
+  w('날짜: '+today());
+  w('');
+
+  if(!url){w('❌ URL 미설정');return;}
+
+  w('[1/5] ping...');
+  try{
+    const payload=JSON.stringify({action:'ping'});
+    const r=await fetch(url+'?data='+encodeURIComponent(payload),{redirect:'follow'});
+    const text=await r.text();
+    w('  상태: '+r.status);
+    w('  응답: '+text.substring(0,200));
+    try{const j=JSON.parse(text);w('  결과: '+(j.ok?'✅':'❌ '+j.error));}
+    catch(e){w('  ❌ JSON 파싱 실패 — Apps Script 배포 설정 확인 (액세스: 모든 사용자)');return;}
+  }catch(e){w('  ❌ fetch 실패: '+e.message);return;}
+  w('');
+
+  w('[2/5] getData 2F...');
+  try{
+    const j=await api('getData',{floor:2,date:today()});
+    w('  카테고리: '+(j.categories?.length||0)+'개 '+JSON.stringify(j.categories?.map(c=>c.name)||[]));
+    w('  항목: '+(j.items?.length||0)+'개');
+    w('  체크: '+(j.checks?.length||0)+'건');
+  }catch(e){w('  ❌ '+e.message);}
+  w('');
+
+  w('[3/5] getData 3F...');
+  try{
+    const j=await api('getData',{floor:3,date:today()});
+    w('  카테고리: '+(j.categories?.length||0)+'개');
+    w('  항목: '+(j.items?.length||0)+'개');
+    w('  체크: '+(j.checks?.length||0)+'건');
+  }catch(e){w('  ❌ '+e.message);}
+  w('');
+
+  w('[4/5] check 쓰기...');
+  const tid='test_'+Date.now();
+  try{
+    const j=await api('check',{floor:2,date:today(),categoryId:'diag',categoryName:'진단',itemId:tid,itemName:'진단',userId:'diag',userName:'진단',time:'test',state:'ON'});
+    w('  결과: '+JSON.stringify(j));
+  }catch(e){w('  ❌ '+e.message);}
+  w('');
+
+  w('[5/5] 쓴 데이터 확인...');
+  try{
+    const j=await api('getData',{floor:2,date:today()});
+    const found=j.checks?.find(c=>c.itemId===tid);
+    if(found){w('  ✅ 읽기/쓰기 모두 정상!');
+    }else{
+      w('  ❌ 쓴 데이터를 못 읽음');
+      w('  → Code.gs v5.1 (ds함수 포함) 확인');
+      w('  → Apps Script "새 버전" 재배포 확인');
+    }
+    await api('uncheck',{floor:2,itemId:tid,userId:'diag',date:today()});
+  }catch(e){w('  ❌ '+e.message);}
+  w('\n===== 진단 완료 =====');
 }
 
 /* ================================================================
