@@ -407,14 +407,35 @@ async function render(){
     ctx.fillStyle='#fff';ctx.font=`bold ${r*.7|0}px sans-serif`;ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.fillText(checks.filter(c=>c.itemId===it.itemId).length||'•',x,y);
 
-    // 라벨
+    // 라벨: 항목명 + 최근 점검자
     const nm=it.itemName||'';
-    ctx.font=`bold ${Math.max(9,r*.65|0)}px sans-serif`;ctx.textBaseline='top';
-    const tw=ctx.measureText(nm).width+8;
-    ctx.fillStyle='rgba(0,0,0,.7)';
+    const itemChecks=checks.filter(c=>c.itemId===it.itemId);
+    const lastChk=itemChecks.length>0?itemChecks[itemChecks.length-1]:null;
+    const checkerName=lastChk?`${lastChk.userName} ${lastChk.state}`:'';
+
+    const fs1=Math.max(9,r*.65|0), fs2=Math.max(8,r*.55|0);
+    ctx.font=`bold ${fs1}px sans-serif`;ctx.textBaseline='top';ctx.textAlign='center';
+    const tw1=ctx.measureText(nm).width;
+    ctx.font=`${fs2}px sans-serif`;
+    const tw2=checkerName?ctx.measureText(checkerName).width:0;
+    const tw=Math.max(tw1,tw2)+12;
+    const lh=checkerName?32:16;
+
+    // 라벨 배경
     const lx=x-tw/2,ly=y+r+10;
-    ctx.beginPath();ctx.moveTo(lx+3,ly);ctx.lineTo(lx+tw-3,ly);ctx.arcTo(lx+tw,ly,lx+tw,ly+3,3);ctx.lineTo(lx+tw,ly+13);ctx.arcTo(lx+tw,ly+16,lx+tw-3,ly+16,3);ctx.lineTo(lx+3,ly+16);ctx.arcTo(lx,ly+16,lx,ly+13,3);ctx.lineTo(lx,ly+3);ctx.arcTo(lx,ly,lx+3,ly,3);ctx.closePath();ctx.fill();
-    ctx.fillStyle='#fff';ctx.fillText(nm,x,y+r+12);
+    ctx.fillStyle='rgba(0,0,0,.75)';
+    ctx.beginPath();ctx.moveTo(lx+3,ly);ctx.lineTo(lx+tw-3,ly);ctx.arcTo(lx+tw,ly,lx+tw,ly+3,3);ctx.lineTo(lx+tw,ly+lh-3);ctx.arcTo(lx+tw,ly+lh,lx+tw-3,ly+lh,3);ctx.lineTo(lx+3,ly+lh);ctx.arcTo(lx,ly+lh,lx,ly+lh-3,3);ctx.lineTo(lx,ly+3);ctx.arcTo(lx,ly,lx+3,ly,3);ctx.closePath();ctx.fill();
+
+    // 항목명
+    ctx.fillStyle='#fff';ctx.font=`bold ${fs1}px sans-serif`;
+    ctx.fillText(nm,x,y+r+12);
+
+    // 최근 점검자
+    if(checkerName){
+      ctx.fillStyle=lastChk.state==='ON'?'#86efac':'#fca5a5';
+      ctx.font=`${fs2}px sans-serif`;
+      ctx.fillText(checkerName,x,y+r+26);
+    }
   });
 
   // 미배치 안내
